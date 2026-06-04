@@ -1,0 +1,65 @@
+# Build CLAS12 plugins against GEMC images from ghcr.io/gemc/src.
+name: Deploy and Test
+permissions:
+  contents: write
+  packages: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: clas12-plugins-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  # Allows this workflow to be triggered manually or from other repositories.
+  workflow_dispatch:
+
+  pull_request:
+    paths-ignore:
+      - "**/README*"
+      - "**/LICENSE*"
+      - "**/CODE_OF_CONDUCT.md"
+      - "**/CONTRIBUTING.md"
+      - "**/SECURITY.md"
+  merge_group:
+  push:
+    branches: [ main ]
+    tags: [ '*' ]
+    paths-ignore:
+      - "**/*.md"
+      - "**/README*"
+      - "**/CODE_OF_CONDUCT.md"
+      - "**/CONTRIBUTING.md"
+      - "**/SECURITY.md"
+      - "releases/**"
+
+jobs:
+  discover:
+    name: Create Job Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.scan.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - id: scan
+        name: Build matrix
+        run: ci/distros_tags.sh
+
+  build:
+    name: ${{ matrix.label }}
+    needs: [ discover ]
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.gemc_image }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build plugins
+        run: ci/build.sh

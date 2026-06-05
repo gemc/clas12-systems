@@ -1,0 +1,122 @@
+name: Sanitize
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: sanitize-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+    paths-ignore:
+      - "**/README*"
+      - "**/LICENSE*"
+      - "**/CODE_OF_CONDUCT.md"
+      - "**/CONTRIBUTING.md"
+      - "**/SECURITY.md"
+  pull_request:
+    paths-ignore:
+      - "**/README*"
+      - "**/LICENSE*"
+      - "**/CODE_OF_CONDUCT.md"
+      - "**/CONTRIBUTING.md"
+      - "**/SECURITY.md"
+
+jobs:
+  discover:
+    name: Create job matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_sanitize: ${{ steps.scan.outputs.matrix_sanitize }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - id: scan
+        name: Build matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./ci/sanitizers_tags.sh
+
+      - name: Fail if matrix is empty
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${{ steps.scan.outputs.matrix_sanitize }}" ]]; then
+            echo "matrix_sanitize output is empty. Check ci/sanitizers_tags.sh writing to GITHUB_OUTPUT."
+            exit 1
+          fi
+
+      - name: Show matrix (debug)
+        shell: bash
+        run: |
+          echo '${{ steps.scan.outputs.matrix_sanitize }}'
+
+  build-with-sanitizer:
+    name: ${{ matrix.label }} ${{ matrix.sanitizer }}
+    needs: [ discover ]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix_sanitize) }}
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.gemc_image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Sanitizer - ${{ matrix.sanitizer }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./ci/build.sh "${{ matrix.sanitizer }}"
+
+      - name: Package sanitizer logs
+        if: ${{ always() }} # run regardless of earlier step outcomes
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="$GITHUB_WORKSPACE/logs"
+          outdir="$GITHUB_WORKSPACE/_artifacts"
+          mkdir -p "$outdir"
+
+          if [[ -d "$src" ]]; then
+            tar -C "$GITHUB_WORKSPACE" -czf "$outdir/logs-${{ matrix.label }}-${{ matrix.sanitizer }}.tgz" "logs"
+            echo "Packaged logs from $src"
+          else
+            echo "No logs directory at $src"
+          fi
+
+      - name: Upload sanitizer logs (artifact)
+        if: ${{ always() }} # run regardless of earlier step outcomes
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ matrix.label }}-${{ matrix.sanitizer }}
+          path: ${{ github.workspace }}/_artifacts/logs-${{ matrix.label }}-${{ matrix.sanitizer }}.tgz
+          if-no-files-found: warn
+          retention-days: 14
+
+  build-with-sanitizer-final:
+    name: Sanitize - summary
+    if: ${{ always() }} # run regardless of earlier step outcomes
+    needs: [ build-with-sanitizer ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any matrix entry failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "### Some sanitizer jobs failed or were cancelled." >> $GITHUB_STEP_SUMMARY
+          exit 1
+
+      - name: Pass
+        run: |
+          echo "### All sanitizer jobs passed." >> $GITHUB_STEP_SUMMARY

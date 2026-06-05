@@ -13,7 +13,7 @@ project(
     meson_version : '>= 1.10.1',
 )
 
-project_description = 'CLAS12 geometry systems and plugin package for GEMC digitization, magnetic fields, streamers, and calibration support.'
+project_description = 'CLAS12 geometry systems and plugins for GEMC'
 
 if get_option('buildtype') == 'debug'
     add_project_arguments('-fno-omit-frame-pointer', language : 'cpp')
@@ -28,6 +28,17 @@ fs = import('fs')
 
 # ---------------------------------------------------------------------------
 # C++ plugin build infrastructure
+#
+# System plugin meson.build files append dictionaries to clas12_plugins:
+#
+#   clas12_plugins += [{
+#       'name' : 'dc',
+#       'sources' : files('dc.cc'),
+#       'dependencies' : [gemc_dep],
+#   }]
+#
+# The top-level loop below is the only place that turns those registry entries
+# into installed GEMC shared-library plugins.
 # ---------------------------------------------------------------------------
 clas12_static_libs = {}
 clas12_plugins = []
@@ -35,9 +46,7 @@ clas12_plugin_targets = []
 
 subdir('meson')   # sets up ccdb, hipo-cpp, clas12-cmag, geant4, gemc deps
 
-# ---------------------------------------------------------------------------
 # coatjava — install automatically on first configure if not present
-# ---------------------------------------------------------------------------
 coatjava_dir = meson.project_source_root() / 'geometry_src' / 'coatjava'
 if not fs.is_dir(coatjava_dir)
     run_command(
@@ -46,9 +55,7 @@ if not fs.is_dir(coatjava_dir)
     )
 endif
 
-# ---------------------------------------------------------------------------
 # Python / geometry infrastructure (pygemc)
-# ---------------------------------------------------------------------------
 pygemc_sub = subproject('pygemc')
 venv_bin   = pygemc_sub.get_variable('venv_bin')
 python_exe = import('python').find_installation(venv_bin / 'python3')
@@ -56,13 +63,13 @@ python_exe = import('python').find_installation(venv_bin / 'python3')
 sql_db = meson.project_build_root() / 'clas12.db'
 
 # ---------------------------------------------------------------------------
-# Per-system: geometry test + C++ plugin
+# Per-system: geometry test + C++ plugin registry
 #
 # For each system listed below meson will:
 #   1. Register a test() that runs geometry_src/<sys>/<sys>.py to build
 #      the geometry into the SQLite database (requires coatjava pre-installed).
-#   2. subdir() into geometry_src/<sys>/plugin/ to build the C++ plugin,
-#      if a meson.build exists there.
+#   2. subdir() into geometry_src/<sys>/plugin/ so the system can register
+#      any C++ plugin shared libraries in clas12_plugins.
 #
 # Add a new detector name to the list when its directory is ready.
 # ---------------------------------------------------------------------------
@@ -93,13 +100,14 @@ foreach sys : clas12_systems
 endforeach
 
 # ---------------------------------------------------------------------------
-# Build all registered shared-library plugins
+# Build and install all registered shared-library plugins
 # ---------------------------------------------------------------------------
 foreach plugin : clas12_plugins
     plugin_target = shared_library(
         plugin['name'],
         plugin['sources'],
         install             : plugin.get('install', true),
+        install_dir         : plugin.get('install_dir', get_option('libdir')),
         dependencies        : plugin.get('dependencies', []),
         include_directories : plugin.get('include_directories', []),
         link_with           : plugin.get('link_with', []),

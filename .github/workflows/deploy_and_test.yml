@@ -1,18 +1,18 @@
-# Build CLAS12 plugins against GEMC images from ghcr.io/gemc/src.
+# Build, test, and publish CLAS12 systems images based on ghcr.io/gemc/src.
 name: Deploy and Test
 permissions:
-  contents: write
-  packages: read
+  contents: read
+  packages: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DOCKER_BUILD_SUMMARY: false
 
 concurrency:
-  group: clas12-plugins-${{ github.ref }}
+  group: clas12-systems-${{ github.ref }}
   cancel-in-progress: true
 
 on:
-  # Allows this workflow to be triggered manually or from other repositories.
   workflow_dispatch:
 
   pull_request:
@@ -29,37 +29,219 @@ on:
     paths-ignore:
       - "**/*.md"
       - "**/README*"
+      - "**/LICENSE*"
       - "**/CODE_OF_CONDUCT.md"
       - "**/CONTRIBUTING.md"
       - "**/SECURITY.md"
       - "releases/**"
 
 jobs:
-  discover:
-    name: Create Job Matrix
+  overview:
+    name: Workflow Overview
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.scan.outputs.matrix }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Write overview
+        shell: bash
+        run: |
+          : "${GITHUB_STEP_SUMMARY:=$RUNNER_TEMP/summary.md}"
+          bash ci/summary.sh "$GITHUB_STEP_SUMMARY"
+
+  discover:
+    name: Create Job Matrices
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_build: ${{ steps.scan.outputs.matrix_build }}
+      matrix_manifest: ${{ steps.scan.outputs.matrix_manifest }}
+      image: ${{ steps.scan.outputs.image }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
       - id: scan
         name: Build matrix
         run: ci/distros_tags.sh
 
-  build:
+  build_arch:
     name: ${{ matrix.label }}
-    needs: [ discover ]
+    needs: [ overview, discover ]
     runs-on: ${{ matrix.runner }}
-    container:
-      image: ${{ matrix.gemc_image }}
+    if: ${{ github.event_name != 'pull_request' }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix_build) }}
+    env:
+      TAG: ${{ format('{0}-{1}-{2}', matrix.gemc_tag, matrix.image, matrix.image_tag) }}
+      CACHE_REF: type=registry,ref=${{ needs.discover.outputs.image }}:cache-${{ matrix.arch }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-      - name: Build plugins
-        run: ci/build.sh
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        name: Docker metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ needs.discover.outputs.image }}
+          tags: |
+            type=raw,value=${{ env.TAG }}${{ matrix.suffix }}
+          labels: |
+            org.opencontainers.image.source=${{ github.repository }}
+            org.opencontainers.image.description=CLAS12 systems for GEMC ${{ matrix.gemc_tag }} on ${{ matrix.image }}:${{ matrix.image_tag }} (${{ matrix.arch }})
+
+      - name: Generate Dockerfile
+        shell: bash
+        run: |
+          python3 ci/dockerfile_creator.py \
+            --base-image "${{ matrix.gemc_image }}" \
+            > Dockerfile.generated
+          cat Dockerfile.generated
+
+      - name: Build, test, and push
+        uses: docker/build-push-action@v7
+        with:
+          pull: true
+          context: .
+          file: ./Dockerfile.generated
+          target: final
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: ${{ env.CACHE_REF }}
+          cache-to: ${{ env.CACHE_REF }},mode=max
+
+      - name: Export logs
+        if: ${{ always() }}
+        uses: docker/build-push-action@v7
+        with:
+          pull: true
+          context: .
+          file: ./Dockerfile.generated
+          target: logs-export
+          platforms: ${{ matrix.platform }}
+          push: false
+          cache-from: ${{ env.CACHE_REF }}
+          outputs: type=local,dest=${{ runner.temp }}/artifacts/${{ matrix.logs_dir }}
+
+      - name: Pack logs
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOGROOT="${{ runner.temp }}/artifacts/${{ matrix.logs_dir }}"
+          TAR="logs-${{ matrix.label }}.tgz"
+          if [[ -d "$LOGROOT/logs" ]]; then
+            cd "$LOGROOT"
+            tar -czf "$TAR" logs
+            echo "LOG_TAR=$LOGROOT/$TAR" >> "$GITHUB_ENV"
+          else
+            echo "No exported logs found at $LOGROOT/logs"
+          fi
+
+      - name: Upload logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ matrix.label }}
+          path: ${{ env.LOG_TAR }}
+          if-no-files-found: warn
+          retention-days: 14
+
+  pr_build:
+    name: PR ${{ matrix.label }}
+    needs: [ overview, discover ]
+    runs-on: ${{ matrix.runner }}
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix_build) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Generate Dockerfile
+        shell: bash
+        run: |
+          python3 ci/dockerfile_creator.py \
+            --base-image "${{ matrix.gemc_image }}" \
+            > Dockerfile.generated
+
+      - name: Build and test image
+        uses: docker/build-push-action@v7
+        with:
+          pull: true
+          context: .
+          file: ./Dockerfile.generated
+          target: final
+          platforms: ${{ matrix.platform }}
+          push: false
+
+  manifest:
+    name: ${{ matrix.label }}
+    needs: [ build_arch, discover ]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix_manifest) }}
+    env:
+      TAG: ${{ format('{0}-{1}-{2}', matrix.gemc_tag, matrix.image, matrix.image_tag) }}
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create multi-arch manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${{ needs.discover.outputs.image }}:${TAG}"
+          AMD="${BASE}-amd64"
+          ARM="${BASE}-arm64"
+
+          if docker buildx imagetools inspect "$ARM" >/dev/null 2>&1; then
+            docker buildx imagetools create -t "$BASE" "$AMD" "$ARM"
+          else
+            docker buildx imagetools create -t "$BASE" "$AMD"
+          fi
+
+  final:
+    name: Deploy and Test - summary
+    if: ${{ always() }}
+    needs: [ build_arch, pr_build, manifest ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "### Some CLAS12 systems image jobs failed or were cancelled." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Pass
+        run: |
+          echo "### CLAS12 systems image workflow passed." >> "$GITHUB_STEP_SUMMARY"

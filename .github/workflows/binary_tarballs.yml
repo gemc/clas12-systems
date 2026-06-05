@@ -1,0 +1,54 @@
+# Smoke-test the published GEMC base images used by this repository.
+name: GEMC Base Images
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: clas12-systems-base-images-${{ github.event.workflow_run.id || github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_run:
+    workflows: [ "Deploy and Test" ]
+    types: [ completed ]
+  workflow_dispatch:
+
+jobs:
+  discover:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    name: Create Job Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.scan.outputs.matrix_build }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - id: scan
+        name: Build matrix
+        run: ci/distros_tags.sh
+
+  smoke-test:
+    name: ${{ matrix.label }}
+    needs: [ discover ]
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.gemc_image }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Check GEMC image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
+          . /usr/local/bin/docker-entrypoint.sh
+          gemc -v
+          python3 --version
+          meson --version

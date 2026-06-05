@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Shared CI configuration: which GEMC base images to build the plugins against.
+# Shared CI configuration: which GEMC base images to build CLAS12 systems against.
 # Keep versions here so they stay in sync across all ci/ scripts.
 
 get_gemc_tags()         { echo "dev"; }         # space-separated list
@@ -34,4 +34,11 @@ OS_VERSIONS=(
 build_gemc_image_ref() {
 	local gemc_tag="$1" os="$2" os_ver="$3"
 	printf 'ghcr.io/gemc/src:%s-%s-%s' "$gemc_tag" "$os" "$os_ver"
+}
+
+build_image_ref() {
+	local owner="${GITHUB_REPOSITORY_OWNER:-gemc}"
+	local repo_full="${GITHUB_REPOSITORY:-gemc/clas12-systems}"
+	local repo="${repo_full##*/}"
+	printf 'ghcr.io/%s/%s' "$(lc "$owner")" "$(lc "$repo")"
 }

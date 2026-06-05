@@ -1,6 +1,7 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 
 set -euo pipefail
+shopt -s nullglob
 
 function printHelp() {
 	cat <<EOF
@@ -21,7 +22,7 @@ githubRepo="https://github.com/JeffersonLab/coatjava"
 COATJAVA_TAG=""
 coatjava_choice_count=0
 reset_install="no"
-script_dir="${0:A:h}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 log_file="$script_dir/../build_coatjava.log"
 
 REPO="JeffersonLab/coatjava"
@@ -77,9 +78,9 @@ fi
 install_dir="$script_dir/coatjava"
 src_dir="$script_dir/coatjava_src"
 existing_artifacts=(
-	"$script_dir"/coat*jar(N)
-	"$script_dir"/jcsg*jar(N)
-	"$script_dir"/vecmath*jar(N)
+	"$script_dir"/coat*.jar
+	"$script_dir"/jcsg*.jar
+	"$script_dir"/vecmath*.jar
 )
 
 if [[ -d "$install_dir" || -d "$src_dir" || ${#existing_artifacts[@]} -gt 0 ]]; then
@@ -124,7 +125,7 @@ fi
 cd "$src_dir"
 parallel="-T1"
 echo "Running coatjava build with options: --lfs --no-progress --nomaps $parallel" | tee -a "$log_file"
-if ! ./build-coatjava.sh --lfs --no-progress --nomaps "$parallel" &>> "$log_file"; then
+if ! ./build-coatjava.sh --lfs --no-progress --nomaps "$parallel" >> "$log_file" 2>&1; then
 	echo "Error: coatjava build failed. Log:"
 	cat "$log_file"
 	exit 1

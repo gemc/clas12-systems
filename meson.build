@@ -46,7 +46,8 @@ clas12_plugin_targets = []
 
 subdir('meson')   # sets up ccdb, hipo-cpp, clas12-cmag, geant4, gemc deps
 
-# coatjava — install automatically on first configure if not present
+# coatjava — install automatically on first configure if not present.
+# CI installs Java, git-lfs, and jq before this point.
 coatjava_dir = meson.project_source_root() / 'geometry_src' / 'coatjava'
 if not fs.is_dir(coatjava_dir)
     run_command(

@@ -35,6 +35,7 @@ jobs:
           path: pages/
 
   deploy-doxygen:
+    if: github.ref == 'refs/heads/main'
     needs: build-doxygen
     permissions:
       actions: read

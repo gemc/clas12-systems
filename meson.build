@@ -46,6 +46,17 @@ clas12_plugin_targets = []
 
 subdir('meson')   # sets up ccdb, hipo-cpp, clas12-cmag, geant4, gemc deps
 
+clas12_sanitize = get_option('clas12_sanitize')
+if clas12_sanitize != 'none'
+    clas12_sanitize_arg = '-fsanitize=' + clas12_sanitize
+    add_project_arguments(
+        clas12_sanitize_arg,
+        '-fno-omit-frame-pointer',
+        language : 'cpp',
+    )
+    add_project_link_arguments(clas12_sanitize_arg, language : 'cpp')
+endif
+
 # coatjava — install automatically on first configure if not present.
 # CI installs Java, git-lfs, and jq before this point.
 coatjava_dir = meson.project_source_root() / 'geometry_src' / 'coatjava'

@@ -1,6 +1,0 @@
-option(
-    'gemc',
-    type : 'feature',
-    value : 'auto',
-    description : 'Resolve an installed GEMC dependency for CLAS12 plugins when available.',
-)

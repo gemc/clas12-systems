@@ -1,4 +1,4 @@
-# Build, test, and publish CLAS12 systems images based on ghcr.io/gemc/src.
+# Build, test, and publish ghcr.io/gemc/clas12-systems images based on ghcr.io/gemc/src.
 name: Deploy and Test
 permissions:
   contents: read

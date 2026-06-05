@@ -13,7 +13,7 @@ fi
 
 {
   printf '# CLAS12 Systems — Overview\n'
-  printf 'This workflow builds CLAS12 systems images from published GEMC bases at [ghcr.io/gemc/src](https://github.com/gemc/src/pkgs/container/src).\n'
+  printf 'This workflow publishes CLAS12 systems images to [ghcr.io/gemc/clas12-systems](https://github.com/gemc/clas12-systems/pkgs/container/clas12-systems), using published GEMC base images from [ghcr.io/gemc/src](https://github.com/gemc/src/pkgs/container/src).\n'
   printf 'Except for archlinux (amd64-only), the matrix runs on both the *amd64* and *arm64* architectures.\n'
   printf '\n'
   printf '\n'

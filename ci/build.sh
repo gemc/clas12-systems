@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build CLAS12 systems inside published GEMC images from ghcr.io/gemc/src.
+# Build CLAS12 systems inside published GEMC base images from ghcr.io/gemc/src.
 # Optional argument: address, thread, undefined, or leak to enable a sanitizer.
 
 git config --global --add safe.directory '*'
@@ -25,7 +25,7 @@ case "$sanitizer" in
     setup_options+=("-Dbuildtype=release")
     ;;
   address|thread|undefined|leak)
-    setup_options+=("-Dbuildtype=debug" "-Db_sanitize=$sanitizer")
+    setup_options+=("-Dbuildtype=debug" "-Dclas12_sanitize=$sanitizer")
     ;;
   *)
     echo "Unsupported sanitizer: $sanitizer" >&2

@@ -80,10 +80,10 @@ jobs:
           java-version: '21'
           distribution: 'zulu'
 
-      - name: Install coatjava dependencies
+      - name: Install coatjava
         shell: bash
         run: |
-          ./ci/install_coatjava_deps.sh
+          ./ci/setup_coatjava.sh
 
       - name: Sanitizer - ${{ matrix.sanitizer }}
         shell: bash

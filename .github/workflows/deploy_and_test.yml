@@ -142,6 +142,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "LOG_TAR=" >> "$GITHUB_ENV"
           LOGROOT="${{ runner.temp }}/artifacts/${{ matrix.logs_dir }}"
           TAR="logs-${{ matrix.label }}.tgz"
           if [[ -d "$LOGROOT/logs" ]]; then
@@ -153,7 +154,7 @@ jobs:
           fi
 
       - name: Upload logs
-        if: ${{ always() }}
+        if: ${{ always() && env.LOG_TAR != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: logs-${{ matrix.label }}

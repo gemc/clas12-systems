@@ -12,7 +12,10 @@ SHELL ["/bin/bash", "-c"]
 
 COPY . /root/clas12-systems
 RUN cd /root/clas12-systems \\
-    && ./ci/setup_coatjava.sh \\
+    && ./ci/install_coatjava_deps.sh
+RUN cd /root/clas12-systems \\
+    && ./ci/setup_coatjava.sh
+RUN cd /root/clas12-systems \\
     && ./ci/build.sh \\
     && mkdir -p /opt/clas12-systems \\
     && cp -a install/. /opt/clas12-systems/

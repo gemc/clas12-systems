@@ -1,0 +1,14 @@
+option(
+    'gemc',
+    type : 'feature',
+    value : 'auto',
+    description : 'Resolve an installed GEMC dependency for CLAS12 plugins when available.',
+)
+
+option(
+    'clas12_sanitize',
+    type : 'combo',
+    choices : ['none', 'address', 'thread', 'undefined', 'leak'],
+    value : 'none',
+    description : 'Apply sanitizer flags only to CLAS12 systems targets, not third-party subprojects.',
+)

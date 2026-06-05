@@ -21,7 +21,7 @@ on:
 jobs:
   build-doxygen:
     runs-on: ubuntu-latest
-    container: ghcr.io/gemc/src:dev-fedora-44
+    container: jeffersonlab/base:fedora40
     steps:
       - name: Checkout
         uses: actions/checkout@v6

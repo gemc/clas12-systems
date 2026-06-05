@@ -29,7 +29,7 @@ build_matrix_build() {
 				fi
 
 				local label gemc_image platform suffix logs_dir
-				label="${gemcv}-${os}-${ver}-${cpuv}"
+				label="${os}-${ver}-${cpuv}"
 				gemc_image="$(build_gemc_image_ref "$gemcv" "$os" "$ver")"
 				platform="linux/$cpuv"
 				suffix="-$cpuv"
@@ -74,7 +74,7 @@ build_matrix_manifest() {
 			ver="${pair#*=}"
 
 			body+="${sep}{"
-			body+="\"label\":\"${gemcv}-${os}-${ver}\","
+			body+="\"label\":\"${os}-${ver}\","
 			body+="\"image\":\"${os}\","
 			body+="\"image_tag\":\"${ver}\","
 			body+="\"gemc_tag\":\"${gemcv}\""

@@ -74,6 +74,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fix Java Version
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'zulu'
+
+      - name: Install coatjava dependencies
+        shell: bash
+        run: |
+          ./ci/install_coatjava_deps.sh
+
       - name: Sanitizer - ${{ matrix.sanitizer }}
         shell: bash
         run: |

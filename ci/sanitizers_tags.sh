@@ -57,7 +57,7 @@ build_matrix_build() {
 					fi
 
 					local label gemc_image
-					label="${gemcv}-${os}-${ver}-${cpuv}"
+					label="${os}-${ver}-${cpuv}"
 					gemc_image="$(build_gemc_image_ref "$gemcv" "$os" "$ver")"
 
 					body+="${sep}{"

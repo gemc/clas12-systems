@@ -92,13 +92,14 @@ clas12_systems = [
 foreach sys : clas12_systems
     geo_dir    = 'geometry_src' / sys
     py_script  = geo_dir / sys + '.py'
+    py_script_name = sys + '.py'
     plugin_dir = geo_dir / 'plugin'
 
     if fs.is_file(py_script)
         test(
             'geometry_' + sys,
             python_exe,
-            args        : [py_script, '-f', 'sqlite', '-sql', sql_db],
+            args        : [py_script_name, '-f', 'sqlite', '-sql', sql_db],
             workdir     : meson.project_source_root() / geo_dir,
             is_parallel : false,
             env         : test_env,

@@ -1,5 +1,5 @@
-# Smoke-test the published GEMC base images used by this repository.
-name: GEMC Base Images
+# Upload and test GEMC binary tarballs.
+name: Binary Tarballs
 
 permissions:
   contents: read

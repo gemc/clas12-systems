@@ -4,9 +4,10 @@ set -euo pipefail
 
 function printHelp() {
 	cat <<EOF
-Usage: install_coatjava.sh [-l | -t tag | -g github_url]
+Usage: install_coatjava.sh [-r] [-l | -t tag | -g github_url]
 
 Options:
+  -r                 reset any existing coatjava install before installing
   -l                 use latest coatjava tag (default)
   -t <tag>           use a specific coatjava tag, like 14.1.0
   -g <github_url>    clone and build a custom coatjava repository
@@ -19,12 +20,17 @@ USEDEVEL="no"
 githubRepo="https://github.com/JeffersonLab/coatjava"
 COATJAVA_TAG=""
 coatjava_choice_count=0
-log_file="../build_coatjava.log"
+reset_install="no"
+script_dir="${0:A:h}"
+log_file="$script_dir/../build_coatjava.log"
 
 REPO="JeffersonLab/coatjava"
 
-while getopts ":lt:g:h" opt; do
+while getopts ":rlt:g:h" opt; do
 	case "$opt" in
+	r)
+		reset_install="yes"
+		;;
 	l)
 		USEDEVEL="no"
 		coatjava_choice_count=$((coatjava_choice_count + 1))
@@ -68,6 +74,25 @@ if [[ $# -ne 0 ]]; then
 	exit 1
 fi
 
+install_dir="$script_dir/coatjava"
+src_dir="$script_dir/coatjava_src"
+existing_artifacts=(
+	"$script_dir"/coat*jar(N)
+	"$script_dir"/jcsg*jar(N)
+	"$script_dir"/vecmath*jar(N)
+)
+
+if [[ -d "$install_dir" || -d "$src_dir" || ${#existing_artifacts[@]} -gt 0 ]]; then
+	if [[ $reset_install == "yes" ]]; then
+		echo "Resetting existing coatjava installation in $script_dir"
+		rm -rf "$install_dir" "$src_dir" "${existing_artifacts[@]}"
+	else
+		echo "Coatjava is already installed in $script_dir."
+		echo "Use -r to reset the current installation before installing again."
+		exit 0
+	fi
+fi
+
 if [[ $USEDEVEL == "no" && -z "$COATJAVA_TAG" ]]; then
 	echo "Fetching latest release from $REPO..."
 	LATEST_RELEASE=$(curl -fsS "https://api.github.com/repos/$REPO/releases/latest" | jq -r .tag_name)
@@ -86,12 +111,6 @@ else
 fi
 
 echo "START_INSTALL_COATJAVA $(date)" > "$log_file"
-rm -rf coat*jar(N) jcsg*jar(N) vecmath*jar(N)
-
-install_dir=coatjava
-src_dir=coatjava_src
-
-rm -rf "$install_dir" "$src_dir"
 
 if [[ $USEDEVEL == "yes" ]]; then
 	echo
@@ -110,6 +129,6 @@ if ! ./build-coatjava.sh --lfs --no-progress --nomaps "$parallel" &>> "$log_file
 	cat "$log_file"
 	exit 1
 fi
-cp coatjava/lib/clas/* ..
-cp -r coatjava "../$install_dir"
+cp coatjava/lib/clas/* "$script_dir"
+cp -r coatjava "$install_dir"
 echo "END_INSTALL_COATJAVA $(date)" >> "$log_file"

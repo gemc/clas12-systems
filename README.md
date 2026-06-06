@@ -1,5 +1,28 @@
 # CLAS12 GEMC Systems
 
+[![Test][badge-test]][workflow-test]
+[![Deploy][badge-deploy]][workflow-deploy]
+[![Sanitize][badge-sanitize]][workflow-sanitize]
+[![CodeQL Advanced][badge-codeql]][workflow-codeql]
+[![Doxygen][badge-doxygen]][workflow-doxygen]
+[![Binary Tarballs][badge-binary-tarballs]][workflow-binary-tarballs]
+[![Nightly Dev Release][badge-dev-release]][workflow-dev-release]
+
+[badge-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml/badge.svg
+[badge-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy_and_test.yml/badge.svg
+[badge-sanitize]: https://github.com/gemc/clas12-systems/actions/workflows/sanitize.yml/badge.svg
+[badge-codeql]: https://github.com/gemc/clas12-systems/actions/workflows/codeql.yml/badge.svg
+[badge-doxygen]: https://github.com/gemc/clas12-systems/actions/workflows/doxygen.yml/badge.svg
+[badge-binary-tarballs]: https://github.com/gemc/clas12-systems/actions/workflows/binary_tarballs.yml/badge.svg
+[badge-dev-release]: https://github.com/gemc/clas12-systems/actions/workflows/dev_release.yml/badge.svg
+[workflow-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml
+[workflow-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy_and_test.yml
+[workflow-sanitize]: https://github.com/gemc/clas12-systems/actions/workflows/sanitize.yml
+[workflow-codeql]: https://github.com/gemc/clas12-systems/actions/workflows/codeql.yml
+[workflow-doxygen]: https://github.com/gemc/clas12-systems/actions/workflows/doxygen.yml
+[workflow-binary-tarballs]: https://github.com/gemc/clas12-systems/actions/workflows/binary_tarballs.yml
+[workflow-dev-release]: https://github.com/gemc/clas12-systems/actions/workflows/dev_release.yml
+
 CLAS12 GEMC Systems contains the GEMC3 implementation of CLAS12 detector geometry systems and their
 system-specific plugins. It is the CLAS12 companion repository to the core GEMC application and Python geometry
 API:
@@ -108,6 +131,25 @@ Run GEMC with the local steering card:
 ```shell
 gemc dc.yaml
 gemc dc.yaml -gui
+```
+
+## Reference Checks
+
+Use `scripts/compare_ascii_geometry.py` to compare generated GEMC3 ASCII geometry with the matching
+[`gemc/clas12Tags`](https://github.com/gemc/clas12Tags) reference files:
+
+```shell
+scripts/compare_ascii_geometry.py dc
+```
+
+With no system arguments, the script checks every local `geometry_src/<system>/<system>.py` implementation. The
+script maps GEMC2 and GEMC3 ASCII columns onto common geometry fields and compares only those field values by
+volume name, so formatting and column-order differences do not hide real geometry matches.
+
+Use `--diff` to print field-level mismatches:
+
+```shell
+scripts/compare_ascii_geometry.py dc --diff
 ```
 
 ## Placement And Rotations

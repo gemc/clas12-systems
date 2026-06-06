@@ -6,7 +6,28 @@ set -euo pipefail
 
 git config --global --add safe.directory '*'
 
-source "$(dirname "${BASH_SOURCE[0]}")/java_env.sh"
+set_java_home() {
+  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    export JAVA_HOME
+    return 0
+  fi
+
+  local java_bin java_real
+  java_bin="$(command -v java || true)"
+  if [[ -z "$java_bin" ]]; then
+    echo "ERROR: java not found; cannot set JAVA_HOME" >&2
+    return 1
+  fi
+
+  java_real="$(readlink -f "$java_bin" 2>/dev/null || true)"
+  if [[ -z "$java_real" ]]; then
+    java_real="$java_bin"
+  fi
+
+  JAVA_HOME="$(cd "$(dirname "$java_real")/.." && pwd)"
+  export JAVA_HOME
+}
+
 set_java_home
 
 export DOCKER_ENTRYPOINT_SOURCE_ONLY=1

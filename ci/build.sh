@@ -6,6 +6,9 @@ set -euo pipefail
 
 git config --global --add safe.directory '*'
 
+source "$(dirname "${BASH_SOURCE[0]}")/java_env.sh"
+set_java_home
+
 export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
 . /usr/local/bin/docker-entrypoint.sh
 
@@ -44,6 +47,7 @@ test_log="$PWD/logs/test.log"
   echo " > gemc           : $(command -v gemc || true)"
   echo " > meson          : $(command -v meson) $(meson --version)"
   echo " > SIM_HOME       : ${SIM_HOME}"
+  echo " > JAVA_HOME      : ${JAVA_HOME}"
   echo " > PKG_CONFIG_PATH: ${PKG_CONFIG_PATH}"
   echo " > sanitizer      : ${sanitizer:-none}"
   echo " > cores          : ${jobs}"

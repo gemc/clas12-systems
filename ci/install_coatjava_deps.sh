@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/java_env.sh"
+
 if command -v java >/dev/null 2>&1 && command -v git-lfs >/dev/null 2>&1 && command -v groovy >/dev/null 2>&1 \
   && command -v jq >/dev/null 2>&1 && command -v mvn >/dev/null 2>&1; then
+  set_java_home
   java -version
   git-lfs version
   groovy --version
@@ -38,6 +41,7 @@ else
 fi
 
 git lfs install --system || git lfs install
+set_java_home
 java -version
 git-lfs version
 groovy --version

@@ -34,14 +34,13 @@ system should be ported locally under `geometry_src/<system>` and validated agai
 
 | Path | Purpose |
 | --- | --- |
-| `geometry_src/` | Python geometry systems, coatjava installation helpers, and shared Groovy helpers |
+| `geometry_src/` | Python geometry systems and coatjava installation helpers |
 | `geometry_src/dc/` | Drift-chamber GEMC3 geometry builder |
 | `geometry_src/dc/dc.py` | Executable entry point; run it from `geometry_src/dc` to write the geometry DB |
 | `geometry_src/dc/geometry.py` | DC volume construction from coatjava-generated volume records |
 | `geometry_src/dc/materials.py` | DC material definitions |
 | `geometry_src/dc/variations.py` | Local variation and run-number mapping used by the DC builder |
-| `geometry_src/dc/factory.groovy` | coatjava bridge that emits DC volume rows |
-| `geometry_src/GeoArgParse.groovy` | Shared Groovy argument parser for coatjava factories |
+| `geometry_src/coatjava_factories/` | Shared Java source-file launcher for coatjava geometry services |
 | `geometry_src/install_coatjava.sh` | Local coatjava installer used by Meson configure and CI |
 | `meson.build` | System registry, geometry tests, and plugin build/install loop |
 | `meson/` | GEMC, Geant4, CCDB, HIPO, and CLAS12 magnetic-field dependency setup |
@@ -88,7 +87,7 @@ A typical system directory contains:
 | `materials.py` | System material definitions |
 | `variations.py` | Optional run and variation mapping |
 | `<system>.yaml` | GEMC steering card for quick local runs |
-| `factory.groovy` | Optional coatjava bridge for systems that use CLAS12 Java geometry services |
+| `../coatjava_factories/CoatjavaFactory.java` | Optional coatjava bridge for CLAS12 Java geometry services |
 | `plugin/meson.build` | Optional C++ plugin registration for digitization or other runtime extensions |
 
 The main script should be executable and runnable directly from its directory:

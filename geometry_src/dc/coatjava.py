@@ -1,7 +1,9 @@
 """coatjava bridge and volume table parser for the DC geometry."""
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
+import shutil
 import subprocess
 
 
@@ -30,15 +32,62 @@ def normalize_rotation(value):
     return comma_separate_quantities(value)
 
 
+def java_command():
+    """Return a usable Java command, preferring real JDK installs over macOS stubs."""
+    def usable(java):
+        if not java:
+            return False
+        return subprocess.run([java, "-version"], check=False, capture_output=True).returncode == 0
+
+    java_home = os.environ.get("JAVA_HOME")
+    if java_home:
+        java = Path(java_home) / "bin" / "java"
+        if java.is_file() and usable(str(java)):
+            return str(java)
+
+    for java_home in ("/opt/homebrew/opt/java", "/usr/local/opt/java"):
+        java = Path(java_home) / "bin" / "java"
+        if java.is_file() and usable(str(java)):
+            return str(java)
+
+    if shutil.which("/usr/libexec/java_home"):
+        result = subprocess.run(
+            ["/usr/libexec/java_home"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            java = Path(result.stdout.strip()) / "bin" / "java"
+            if java.is_file() and usable(str(java)):
+                return str(java)
+
+    java = shutil.which("java")
+    if usable(java):
+        return java
+
+    raise RuntimeError("Java is required to run coatjava geometry factories, but no usable JDK was found.")
+
+
 def run_factory(dc_dir, variation, run_number):
-    """Run the local Groovy factory and return the generated volume table path."""
+    """Run the local coatjava factory and return the generated volume table path."""
     dc_path = Path(dc_dir)
     output = dc_path / f"dc__volumes_{variation}.txt"
+    coatjava_dir = dc_path.parent / "coatjava"
+    classpath = os.pathsep.join(
+        [
+            str(coatjava_dir / "lib" / "clas" / "*"),
+            str(coatjava_dir / "lib" / "services" / "*"),
+            str(coatjava_dir / "lib" / "utils" / "*"),
+        ]
+    )
     command = [
-        "groovy",
+        java_command(),
         "-cp",
-        "../*:..",
-        "factory.groovy",
+        classpath,
+        str(dc_path.parent / "coatjava_factories" / "CoatjavaFactory.java"),
+        "--system",
+        "dc",
         "--variation",
         variation,
         "--runnumber",

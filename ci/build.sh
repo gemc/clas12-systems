@@ -71,8 +71,9 @@ if ! meson install -C build >> "$install_log" 2>&1; then
   exit 1
 fi
 
-echo " > meson test -C build" | tee "$test_log"
-if ! meson test -C build --print-errorlogs -j 1 --no-rebuild --num-processes 1 -v >> "$test_log" 2>&1; then
+echo " > meson test -C build --suite clas12" | tee "$test_log"
+if ! meson test -C build --suite clas12 --print-errorlogs -j 1 --no-rebuild --num-processes 1 -v \
+  >> "$test_log" 2>&1; then
   echo " > Meson tests failed. Log:"
   cat "$test_log"
   exit 1

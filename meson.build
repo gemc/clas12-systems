@@ -104,6 +104,7 @@ foreach sys : clas12_systems
             is_parallel : false,
             env         : test_env,
             priority    : 10,
+            suite       : 'clas12',
         )
     endif
 

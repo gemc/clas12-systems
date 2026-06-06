@@ -1,0 +1,79 @@
+# Build and test CLAS12 systems directly inside published ghcr.io/gemc/src images.
+name: Test
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DOCKER_BUILD_SUMMARY: false
+
+concurrency:
+  group: clas12-systems-test-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+  merge_group:
+  push:
+    branches: [ main ]
+    tags: [ '*' ]
+    paths-ignore:
+      - "**/*.md"
+
+jobs:
+  discover:
+    name: Create Job Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_build: ${{ steps.scan.outputs.matrix_build }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - id: scan
+        name: Build matrix
+        run: ci/distros_tags.sh
+
+  build:
+    name: ${{ matrix.label }}
+    needs: [ discover ]
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.gemc_image }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix_build) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install coatjava dependencies
+        run: ./ci/install_coatjava_deps.sh
+
+      - name: Set up coatjava
+        run: ./ci/setup_coatjava.sh
+
+      - name: Build and test
+        run: ./ci/build.sh
+
+  final:
+    name: Test - summary
+    if: ${{ always() }}
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "### Some CLAS12 systems test jobs failed or were cancelled." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Pass
+        run: |
+          echo "### CLAS12 systems test workflow passed." >> "$GITHUB_STEP_SUMMARY"

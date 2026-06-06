@@ -1,5 +1,5 @@
-# Build, test, and publish ghcr.io/gemc/clas12-systems images based on ghcr.io/gemc/src.
-name: Deploy and Test
+# Publish ghcr.io/gemc/clas12-systems images after the Test workflow passes on a push.
+name: Deploy
 permissions:
   contents: read
   packages: write
@@ -9,39 +9,28 @@ env:
   DOCKER_BUILD_SUMMARY: false
 
 concurrency:
-  group: clas12-systems-${{ github.ref }}
+  group: clas12-systems-deploy-${{ github.event.workflow_run.id }}
   cancel-in-progress: true
 
 on:
-  workflow_dispatch:
-
-  pull_request:
-    paths-ignore:
-      - "**/README*"
-      - "**/LICENSE*"
-      - "**/CODE_OF_CONDUCT.md"
-      - "**/CONTRIBUTING.md"
-      - "**/SECURITY.md"
-  merge_group:
-  push:
-    branches: [ main ]
-    tags: [ '*' ]
-    paths-ignore:
-      - "**/*.md"
-      - "**/README*"
-      - "**/LICENSE*"
-      - "**/CODE_OF_CONDUCT.md"
-      - "**/CONTRIBUTING.md"
-      - "**/SECURITY.md"
-      - "releases/**"
+  workflow_run:
+    workflows: [ "Test" ]
+    types: [ completed ]
 
 jobs:
   overview:
     name: Workflow Overview
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push'
+      }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Write overview
         shell: bash
@@ -51,6 +40,11 @@ jobs:
 
   discover:
     name: Create Job Matrices
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push'
+      }}
     runs-on: ubuntu-latest
     outputs:
       matrix_build: ${{ steps.scan.outputs.matrix_build }}
@@ -59,6 +53,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - id: scan
         name: Build matrix
@@ -68,7 +64,6 @@ jobs:
     name: ${{ matrix.label }}
     needs: [ overview, discover ]
     runs-on: ${{ matrix.runner }}
-    if: ${{ github.event_name != 'pull_request' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover.outputs.matrix_build) }}
@@ -79,6 +74,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Set up Buildx
@@ -100,7 +96,7 @@ jobs:
             type=raw,value=${{ env.TAG }}${{ matrix.suffix }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
-            org.opencontainers.image.description=CLAS12 systems for GEMC ${{ matrix.gemc_tag }} on ${{ matrix.image }}:${{ matrix.image_tag }} (${{ matrix.arch }})
+            org.opencontainers.image.description=CLAS12 systems (${{ matrix.arch }})
 
       - name: Generate Dockerfile
         shell: bash
@@ -162,45 +158,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  pr_build:
-    name: PR ${{ matrix.label }}
-    needs: [ overview, discover ]
-    runs-on: ${{ matrix.runner }}
-    if: ${{ github.event_name == 'pull_request' }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.discover.outputs.matrix_build) }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Generate Dockerfile
-        shell: bash
-        run: |
-          python3 ci/dockerfile_creator.py \
-            --base-image "${{ matrix.gemc_image }}" \
-            > Dockerfile.generated
-
-      - name: Build and test image
-        uses: docker/build-push-action@v7
-        with:
-          pull: true
-          context: .
-          file: ./Dockerfile.generated
-          target: final
-          platforms: ${{ matrix.platform }}
-          push: false
-
   manifest:
     name: ${{ matrix.label }}
     needs: [ build_arch, discover ]
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover.outputs.matrix_manifest) }}
@@ -232,9 +193,14 @@ jobs:
           fi
 
   final:
-    name: Deploy and Test - summary
-    if: ${{ always() }}
-    needs: [ build_arch, pr_build, manifest ]
+    name: Deploy - summary
+    if: >-
+      ${{
+        always() &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push'
+      }}
+    needs: [ build_arch, manifest ]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any required job failed
@@ -245,4 +211,4 @@ jobs:
 
       - name: Pass
         run: |
-          echo "### CLAS12 systems image workflow passed." >> "$GITHUB_STEP_SUMMARY"
+          echo "### CLAS12 systems image deploy workflow passed." >> "$GITHUB_STEP_SUMMARY"

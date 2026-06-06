@@ -1,4 +1,4 @@
-# Upload and test GEMC binary tarballs.
+# Upload and test GEMC binary tarballs after CLAS12 systems images deploy successfully.
 name: Binary Tarballs
 
 permissions:
@@ -9,18 +9,17 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 concurrency:
-  group: clas12-systems-base-images-${{ github.event.workflow_run.id || github.ref }}
+  group: clas12-systems-binary-tarballs-${{ github.event.workflow_run.id }}
   cancel-in-progress: true
 
 on:
   workflow_run:
-    workflows: [ "Deploy and Test" ]
+    workflows: [ "Deploy" ]
     types: [ completed ]
-  workflow_dispatch:
 
 jobs:
   discover:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Create Job Matrix
     runs-on: ubuntu-latest
     outputs:
@@ -28,6 +27,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - id: scan
         name: Build matrix

@@ -236,6 +236,38 @@ clas12_systems = [
 Add a detector name to this list only when `geometry_src/<system>/<system>.py` is ready to generate valid GEMC
 geometry.
 
+## Plugin Path
+
+CLAS12 system plugins are installed as `.gplugin` shared libraries under `<prefix>/lib/`. Because GEMC and
+CLAS12 systems are installed to separate prefixes, GEMC needs to know where to look.
+
+Set `GEMC_PLUGIN_PATH` to the CLAS12 systems library directory before running `gemc`:
+
+```shell
+export GEMC_PLUGIN_PATH=$(pkg-config --variable=plugindir clas12-systems)
+gemc dc.yaml
+```
+
+Or pass it on the command line:
+
+```shell
+gemc dc.yaml -plugin_path=/path/to/clas12-systems/lib
+```
+
+When `GEMC_PLUGIN_PATH` is not set, GEMC falls back to its own `lib/` and `build/` directories and then
+the OS dynamic-library search path (`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS).
+
+If a plugin is not found, GEMC prints the current value of `GEMC_PLUGIN_PATH` alongside the error to help
+diagnose path problems.
+
+The installed prefix from a Meson build exposes the plugin directory through a pkg-config file:
+
+```shell
+# After: meson install -C build --prefix=/my/clas12/prefix
+export PKG_CONFIG_PATH=/my/clas12/prefix/lib/pkgconfig:$PKG_CONFIG_PATH
+export GEMC_PLUGIN_PATH=$(pkg-config --variable=plugindir clas12-systems)
+```
+
 ## Plugin Build Model
 
 System plugins use a registry pattern:

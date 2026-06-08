@@ -24,6 +24,8 @@ g4camera:
 
 gparticle:
   - name: e-
-    p: 4000
+    p: 4000*MeV
     theta: 20*deg
+    delta_theta: 10*deg
+    delta_phi: 180*deg
 

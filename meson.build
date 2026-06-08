@@ -23,6 +23,7 @@ endif
 
 test_env = environment()
 test_env.set('PYTHONDONTWRITEBYTECODE', '1')
+test_env.prepend('PYTHONPATH', meson.project_source_root() / 'geometry_src')
 
 fs = import('fs')
 
@@ -71,6 +72,17 @@ endif
 pygemc_sub = subproject('pygemc')
 venv_bin   = pygemc_sub.get_variable('venv_bin')
 python_exe = import('python').find_installation(venv_bin / 'python3')
+
+# Register geometry_src/ in the venv via a .pth file so every detector script
+# can import clas12_common without per-detector sys.path boilerplate.
+# Python processes .pth files at interpreter startup for any use of this venv.
+run_command(
+    python_exe, '-c',
+    'import sys, sysconfig, pathlib; '
+    + 'pathlib.Path(sysconfig.get_path("purelib"), "clas12_systems.pth").write_text(sys.argv[1])',
+    meson.project_source_root() / 'geometry_src',
+    check : true,
+)
 
 sql_db = meson.project_build_root() / 'clas12.db'
 
@@ -131,3 +143,20 @@ foreach plugin : clas12_plugins
     )
     clas12_plugin_targets += plugin_target
 endforeach
+
+# ---------------------------------------------------------------------------
+# pkg-config file — exposes plugindir so CI can auto-discover installed plugins
+#
+#   export GEMC_PLUGIN_PATH=$(pkg-config --variable=plugindir clas12-systems)
+# ---------------------------------------------------------------------------
+configure_file(
+    input         : 'clas12-systems.pc.in',
+    output        : 'clas12-systems.pc',
+    configuration : {
+        'PREFIX'    : get_option('prefix'),
+        'PLUGINDIR' : get_option('prefix') / get_option('libdir'),
+        'VERSION'   : meson.project_version(),
+    },
+    install       : true,
+    install_dir   : get_option('libdir') / 'pkgconfig',
+)

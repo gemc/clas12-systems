@@ -6,11 +6,13 @@ custom geometry where needed.
 """
 
 import math
+import sys
 from pathlib import Path
 import re
 
 from pygemc import GVolume
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from clas12_common import gemc2_fstr
 from coatjava import generate_volumes
 from variations import variation_to_run
@@ -89,8 +91,8 @@ def build_superlayer(configuration, volume):
     gvolume.color = "99aaff"
     gvolume.material = "dcgas"
     gvolume.style = 1
-    # gvolume.digitization = "dc"
-    # gvolume.set_identifier("sector", sector, "superlayer", superlayer, "layer", 1, "wire", 1)
+    gvolume.digitization = "dc"
+    gvolume.set_identifier("sector", sector, "superlayer", superlayer, "layer", 1, "wire", 1)
     gvolume.publish(configuration)
     return True
 

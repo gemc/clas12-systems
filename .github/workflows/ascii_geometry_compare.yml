@@ -1,0 +1,114 @@
+name: ASCII Geometry Comparison
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: ascii-geometry-comparison-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - "**/*.md"
+  workflow_dispatch:
+
+jobs:
+  compare:
+    name: Compare ASCII Geometry
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gemc/src:dev-ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          path: clas12-systems
+
+      - name: Download clas12Tags
+        uses: actions/checkout@v6
+        with:
+          repository: gemc/clas12Tags
+          path: clas12Tags
+
+      - name: Install coatjava dependencies
+        working-directory: clas12-systems
+        run: ./ci/install_coatjava_deps.sh
+
+      - name: Set up coatjava
+        working-directory: clas12-systems
+        run: ./ci/setup_coatjava.sh
+
+      - name: Configure Python geometry environment
+        working-directory: clas12-systems
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory '*'
+
+          export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
+          . /usr/local/bin/docker-entrypoint.sh
+          export PKG_CONFIG_PATH="${SIM_HOME}/gemc/dev/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+
+          meson setup build --wipe -Dbuildtype=release
+
+      - name: Compare generated ASCII geometry
+        id: compare
+        working-directory: clas12-systems
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          log="$RUNNER_TEMP/ascii-geometry-compare.log"
+          workdir="$RUNNER_TEMP/ascii-geometry"
+          clas12tags="$GITHUB_WORKSPACE/clas12Tags/experiments/clas12"
+
+          set +e
+          scripts/compare_ascii_geometry.py \
+            --clas12tags "$clas12tags" \
+            --workdir "$workdir" \
+            --keep \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+
+          join_lines() {
+            awk 'BEGIN { sep = "" } { printf "%s%s", sep, $0; sep = "; " } END { print "" }'
+          }
+
+          {
+            echo "### ASCII Geometry Comparison"
+            echo
+            echo "| Detector | Result | Details |"
+            echo "| --- | --- | --- |"
+
+            for script in geometry_src/*/*.py; do
+              detector="$(basename "${script%.py}")"
+              detector_dir="$(dirname "$script")"
+              [[ "$detector_dir" == "geometry_src/$detector" ]] || continue
+
+              if grep -Eq "^${detector}: (missing|extra|generation failed|.+)" "$log"; then
+                details="$(grep -E "^${detector}: " "$log" | join_lines)"
+                echo "| ${detector} | fail | ${details} |"
+              elif grep -Eq "^${detector}/[^:]+: differs" "$log"; then
+                details="$(grep -E "^${detector}/[^:]+: differs" "$log" | join_lines)"
+                echo "| ${detector} | fail | ${details} |"
+              elif grep -Eq "^${detector}/[^:]+: ok" "$log"; then
+                details="$(grep -E "^${detector}/[^:]+: ok" "$log" | join_lines)"
+                echo "| ${detector} | pass | ${details} |"
+              else
+                echo "| ${detector} | fail | no comparison result found |"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$status"

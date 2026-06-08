@@ -1,4 +1,9 @@
-"""coatjava bridge and volume table parser for the DC geometry."""
+"""coatjava bridge and volume table parser for the DC geometry.
+
+The Java factory writes a temporary pipe-delimited table describing the DC
+volumes. This module runs that factory, normalizes the text values to GEMC3
+conventions, and returns typed rows to the Python geometry builder.
+"""
 
 from dataclasses import dataclass
 import os
@@ -9,6 +14,8 @@ import subprocess
 
 @dataclass(frozen=True)
 class CoatjavaVolume:
+    """One parsed row from the coatjava DC volume table."""
+
     name: str
     mother: str
     position: str
@@ -34,22 +41,27 @@ def normalize_rotation(value):
 
 def java_command():
     """Return a usable Java command, preferring real JDK installs over macOS stubs."""
+
     def usable(java):
+        """Return True when the candidate binary can run `java -version`."""
         if not java:
             return False
         return subprocess.run([java, "-version"], check=False, capture_output=True).returncode == 0
 
+    # Respect explicit Java setup first; CI and local builds may set JAVA_HOME.
     java_home = os.environ.get("JAVA_HOME")
     if java_home:
         java = Path(java_home) / "bin" / "java"
         if java.is_file() and usable(str(java)):
             return str(java)
 
+    # Prefer common Homebrew JDK locations over /usr/bin/java, which can be a macOS launcher stub.
     for java_home in ("/opt/homebrew/opt/java", "/usr/local/opt/java"):
         java = Path(java_home) / "bin" / "java"
         if java.is_file() and usable(str(java)):
             return str(java)
 
+    # /usr/libexec/java_home reports an installed JDK path on macOS when one exists.
     if shutil.which("/usr/libexec/java_home"):
         result = subprocess.run(
             ["/usr/libexec/java_home"],
@@ -74,6 +86,7 @@ def run_factory(dc_dir, variation, run_number):
     dc_path = Path(dc_dir)
     output = dc_path / f"dc__volumes_{variation}.txt"
     coatjava_dir = dc_path.parent / "coatjava"
+    # The installed coatjava tree keeps required jars split across these library groups.
     classpath = os.pathsep.join(
         [
             str(coatjava_dir / "lib" / "clas" / "*"),
@@ -93,11 +106,13 @@ def run_factory(dc_dir, variation, run_number):
         "--runnumber",
         str(run_number),
     ]
+    # CoatjavaFactory.java is launched in source-file mode; it writes output in dc_path.
     subprocess.run(command, cwd=dc_path, check=True)
     return output
 
 
 def read_volumes(path):
+    """Read a coatjava pipe-delimited volume table into CoatjavaVolume rows."""
     volumes = []
     with Path(path).open(encoding="utf-8") as volume_file:
         for line_number, line in enumerate(volume_file, start=1):
@@ -109,6 +124,7 @@ def read_volumes(path):
             if len(fields) != 7:
                 raise ValueError(f"{path}:{line_number}: expected 7 pipe-delimited fields")
 
+            # Keep ordered rotations ordered; GEMC2 DC rows depend on this convention.
             volumes.append(
                 CoatjavaVolume(
                     name=fields[0],
@@ -124,6 +140,7 @@ def read_volumes(path):
 
 
 def generate_volumes(dc_dir, variation, run_number):
+    """Run coatjava, parse the generated volume table, and remove the temporary file."""
     volume_table = run_factory(dc_dir, variation, run_number)
     volumes = read_volumes(volume_table)
     volume_table.unlink()

@@ -23,9 +23,7 @@ g4camera:
   phi: 150*deg
 
 gparticle:
-  - name: proton
-    p: 2000
-    vz: -3
-    delta_vx: 0.1
-    delta_vy: 0.1
-    multiplicity: 1
+  - name: e-
+    p: 4000
+    theta: 20*deg
+

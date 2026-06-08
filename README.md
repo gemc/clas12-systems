@@ -1,6 +1,7 @@
 # CLAS12 GEMC Systems
 
 [![Test][badge-test]][workflow-test]
+[![ASCII Geometry Comparison][badge-ascii-geometry]][workflow-ascii-geometry]
 [![Deploy][badge-deploy]][workflow-deploy]
 [![Sanitize][badge-sanitize]][workflow-sanitize]
 [![CodeQL Advanced][badge-codeql]][workflow-codeql]
@@ -9,6 +10,7 @@
 [![Nightly Dev Release][badge-dev-release]][workflow-dev-release]
 
 [badge-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml/badge.svg
+[badge-ascii-geometry]: https://github.com/gemc/clas12-systems/workflows/ASCII%20Geometry%20Comparison/badge.svg
 [badge-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy_and_test.yml/badge.svg
 [badge-sanitize]: https://github.com/gemc/clas12-systems/actions/workflows/sanitize.yml/badge.svg
 [badge-codeql]: https://github.com/gemc/clas12-systems/actions/workflows/codeql.yml/badge.svg
@@ -16,6 +18,7 @@
 [badge-binary-tarballs]: https://github.com/gemc/clas12-systems/actions/workflows/binary_tarballs.yml/badge.svg
 [badge-dev-release]: https://github.com/gemc/clas12-systems/actions/workflows/dev_release.yml/badge.svg
 [workflow-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml
+[workflow-ascii-geometry]: https://github.com/gemc/clas12-systems/actions/workflows/ascii_geometry_compare.yml
 [workflow-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy_and_test.yml
 [workflow-sanitize]: https://github.com/gemc/clas12-systems/actions/workflows/sanitize.yml
 [workflow-codeql]: https://github.com/gemc/clas12-systems/actions/workflows/codeql.yml

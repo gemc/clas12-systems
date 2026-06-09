@@ -6,10 +6,9 @@
 bool DC_digitization::defineReadoutSpecsImpl() {
 	double timeWindow    = gopts->getScalarDouble("dc_timeWindow");
 	double gridStartTime = 0;
-	auto   hitBitSet     = HitBitSet("000000");
 	double maxStep       = 1 * CLHEP::mm;
 
-	readoutSpecs = std::make_shared<GReadoutSpecs>(timeWindow, gridStartTime, hitBitSet, maxStep, log);
+	readoutSpecs = std::make_shared<GReadoutSpecs>(timeWindow, gridStartTime, maxStep, log);
 
 	return true;
 }

@@ -3,6 +3,7 @@ directory = clas12-cmag
 url = https://github.com/JeffersonLab/clas12-cmag.git
 revision = v1.4
 depth = 1
+patch_directory = clas12-cmag
 
 # makes dependency auto-fallback as long as the
 # subproject calls meson.override_dependency

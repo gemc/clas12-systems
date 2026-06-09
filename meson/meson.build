@@ -111,7 +111,7 @@ hipo_cpp_sp = subproject(
         'warning_level=0',
     ],
 )
-hipo_cpp_dep = hipo_cpp_sp.get_variable('hipo_dep')
+hipo_cpp_dep = hipo_cpp_sp.get_variable('hipo_dep').as_system()
 
 clas12_cmag_dep = dependency('clas12-cmag', include_type : 'system', default_options : ['warning_level=0'])
 

@@ -14,8 +14,11 @@
 class DC_digitization : public GDynamicDigitization
 {
 public:
-	/// Inherit the base constructor (const std::shared_ptr<GOptions>&).
-	using GDynamicDigitization::GDynamicDigitization;
+	/// Use "dc" as the logger channel so verbosity.dc controls this plugin independently
+	/// of the global gdigitization verbosity.
+	explicit DC_digitization(const std::shared_ptr<GOptions>& g) : GDynamicDigitization(g) {
+		log = std::make_shared<GLogger>(g, "DC_digitization", "dc");
+	}
 
 
 	bool defineReadoutSpecsImpl() override;

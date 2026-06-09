@@ -68,6 +68,7 @@ system should be ported locally under `geometry_src/<system>` and validated agai
 | `geometry_src/dc/variations.py` | Local variation and run-number mapping used by the DC builder |
 | `geometry_src/coatjava_factories/` | Shared Java source-file launcher for coatjava geometry services |
 | `geometry_src/install_coatjava.sh` | Local coatjava installer used by Meson configure and CI |
+| `clas12-systems.pc.in` | pkg-config template; Meson fills `@PREFIX@`, `@PLUGINDIR@`, and `@VERSION@` at install time to produce `clas12-systems.pc`, which exposes the plugin directory so `GEMC_PLUGIN_PATH` can be set via `pkg-config --variable=plugindir clas12-systems` |
 | `meson.build` | System registry, geometry tests, and plugin build/install loop |
 | `meson/` | GEMC, Geant4, CCDB, HIPO, and CLAS12 magnetic-field dependency setup |
 | `ci/` | Docker, sanitizer, coatjava, Doxygen, and release automation |

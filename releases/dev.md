@@ -1,3 +1,5 @@
+<!-- DO NOT EDIT — this file is auto-generated from git log output -->
+
 ## Commits on main since 2026-06-03
 
 - 2026-06-05 **eaede76** — added reset flag to delete previous coatjava installations _(by Maurizio Ungaro)_

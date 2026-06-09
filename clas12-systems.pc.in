@@ -1,0 +1,6 @@
+prefix=@PREFIX@
+plugindir=@PLUGINDIR@
+
+Name: clas12-systems
+Description: CLAS12 GEMC3 detector plugins
+Version: @VERSION@

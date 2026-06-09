@@ -29,15 +29,16 @@ public:
 	bool loadConstantsImpl(int runno, std::string const& variation) override;
 
 
-	// bool loadTTImpl([[maybe_unused]] int runno, [[maybe_unused]] std::string const& variation) override;
+	bool loadTTImpl(int runno, std::string const& variation) override;
 
-
-	// [[nodiscard]] std::unique_ptr<GDigitizedData> digitizeHitImpl(GHit* ghit, [[maybe_unused]] size_t hitn) override;
+	[[nodiscard]] std::unique_ptr<GDigitizedData> digitizeHitImpl(GHit* ghit, size_t hitn) override;
 
 	DCConstants dcc;
 
 private:
 
-	/// Translation table created by loadTTImpl().
-	// std::shared_ptr<GTranslationTable> translationTable;
+	[[nodiscard]] double calc_Time(double x, double dmax, double tmax, double alpha,
+	                               double bfield, int sec, int sl) const;
+	[[nodiscard]] double calc_TimeBeta(double x, double beta, int sec, int sl) const;
+	[[nodiscard]] double doca_smearing(double x, double beta, int sec, int sl) const;
 };

@@ -104,4 +104,6 @@ if ! meson test -C build --suite clas12 --print-errorlogs -j 1 --no-rebuild --nu
   exit 1
 fi
 
-echo " > build, install, and tests complete"
+echo "   - Successful: $(grep 'Ok:' "$test_log" | awk '{sum += $2} END {print sum + 0}')" | tee -a "$test_log"
+echo "   - Failures:   $(grep 'Fail:' "$test_log" | awk '{sum += $2} END {print sum + 0}')" | tee -a "$test_log"
+echo " > Complete test log: $test_log"

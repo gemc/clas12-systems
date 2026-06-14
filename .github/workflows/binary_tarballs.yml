@@ -1,6 +1,7 @@
 # Upload and test GEMC binary tarballs after CLAS12 systems images deploy successfully.
 name: Binary Tarballs
 
+run-name: Triggered by successful deploy workflow
 permissions:
   contents: read
   packages: read

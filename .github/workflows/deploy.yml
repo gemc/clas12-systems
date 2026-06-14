@@ -1,5 +1,7 @@
 # Publish ghcr.io/gemc/clas12-systems images after the Test workflow passes on a push.
 name: Deploy
+
+run-name: Triggered by successful test workflow
 permissions:
   contents: read
   packages: write

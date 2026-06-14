@@ -1,6 +1,8 @@
 # Build and test CLAS12 systems directly inside published ghcr.io/gemc/src images.
 name: Test
 
+run-name: ${{ github.event.head_commit.message || github.event.pull_request.title || inputs.triggered_by }}
+
 permissions:
   contents: read
   packages: read
@@ -14,6 +16,14 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  # Allows gemc/src to re-run these tests against freshly published images
+  # (see gemc/src .github/workflows/trigger_clas12_systems_tests.yml).
+  workflow_dispatch:
+    inputs:
+      triggered_by:
+        description: 'What triggered this run'
+        required: false
+        default: 'manual'
   pull_request:
     paths-ignore:
       - "**/*.md"

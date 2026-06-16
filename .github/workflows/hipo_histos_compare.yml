@@ -1,0 +1,170 @@
+# Compare GEMC3 (this repo) digitized output against the GEMC2/clas12Tags reference,
+# per supported system, using hipo-histos.
+#
+# For each system the job:
+#   1. builds + installs this repo (ci/build.sh also generates build/clas12.db and hipo-histos),
+#   2. runs GEMC3 for n_events with the system's committed yaml (gun comes from the yaml, unchanged),
+#   3. downloads the latest clas12Tags reference HIPO (always latest — see hipo_reference.yml there),
+#   4. runs hipo-histos --compare-system, which fails on a diagnostic diff or insufficient statistics.
+#
+# n_events is part of the matrix and is reported in the run metrics. DC uses 10,000 events.
+name: HIPO Histos Comparison
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # clas12Tags rolling reference release (always latest; not pinned).
+  REFERENCE_REPO: gemc/clas12Tags
+  REFERENCE_TAG: histo-reference
+
+concurrency:
+  group: hipo-histos-compare-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - "geometry_src/dc/**"
+      - "plugins/hipo/**"
+      - "hipo-histos/**"
+      - ".github/workflows/hipo_histos_compare.yml"
+  push:
+    branches: [ main ]
+    paths:
+      - "geometry_src/dc/**"
+      - "plugins/hipo/**"
+      - "hipo-histos/**"
+      - ".github/workflows/hipo_histos_compare.yml"
+  workflow_dispatch:
+
+jobs:
+  compare:
+    name: Compare ${{ matrix.system }} (${{ matrix.n_events }} events)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gemc/src:dev-ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: dc
+            n_events: 10000
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install coatjava dependencies
+        run: ./ci/install_coatjava_deps.sh
+
+      - name: Set up coatjava
+        run: ./ci/setup_coatjava.sh
+
+      - name: Build and install
+        run: ./ci/build.sh
+
+      - name: Download latest clas12Tags reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/${REFERENCE_REPO}/releases/download/${REFERENCE_TAG}"
+          # Public assets — no token needed. Always the latest reference (rolling tag).
+          curl -fSL "${base}/${{ matrix.system }}_reference.hipo" -o "$RUNNER_TEMP/reference.hipo"
+          # Provenance sidecar (source clas12Tags commit, date, n_events) — optional.
+          curl -fSL "${base}/${{ matrix.system }}_reference.txt" -o "$RUNNER_TEMP/reference.txt" || \
+            echo "source: unknown" > "$RUNNER_TEMP/reference.txt"
+
+      - name: Run GEMC3
+        id: gemc
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
+          . /usr/local/bin/docker-entrypoint.sh
+          export PKG_CONFIG_PATH="$PWD/install/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+
+          # GEMC_PLUGIN_PATH must point at the installed plugin prefix (the libdir holding
+          # the *.gplugin shared libraries). Prefer the pkg-config plugindir; fall back to
+          # the build.sh install libdir. Fail early if it cannot be resolved or is empty.
+          plugin_prefix="$(pkg-config --variable=plugindir clas12-systems 2>/dev/null || true)"
+          if [[ -z "$plugin_prefix" ]]; then
+            plugin_prefix="$PWD/install/lib"
+          fi
+          if [[ -z "$plugin_prefix" || ! -d "$plugin_prefix" ]]; then
+            echo "ERROR: could not resolve GEMC_PLUGIN_PATH (got '$plugin_prefix')" >&2
+            exit 1
+          fi
+          export GEMC_PLUGIN_PATH="$plugin_prefix"
+          echo "GEMC_PLUGIN_PATH=$GEMC_PLUGIN_PATH"
+          ls -l "$GEMC_PLUGIN_PATH"/*.gplugin
+
+          workdir="geometry_src/${{ matrix.system }}"
+          cd "$workdir"
+          gemc "${{ matrix.system }}.yaml" \
+            -n "${{ matrix.n_events }}" \
+            -sql "$GITHUB_WORKSPACE/build/clas12.db"
+          # The hipo gstreamer writes <filename>.hipo; dc.yaml uses filename: dc.
+          ls -l "${{ matrix.system }}.hipo"
+
+      - name: Compare against reference
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          hipo_histos="$PWD/install/bin/hipo-histos"
+          gemc3_hipo="$PWD/geometry_src/${{ matrix.system }}/${{ matrix.system }}.hipo"
+          log="$RUNNER_TEMP/compare.log"
+
+          set +e
+          "$hipo_histos" \
+            --compare-system "${{ matrix.system }}" \
+            "$RUNNER_TEMP/reference.hipo" "$gemc3_hipo" \
+            --label clas12Tags --label gemc3 \
+            --diagnostics --fail-on-diff --min-entries-per-bin 10 \
+            -o "$RUNNER_TEMP/${{ matrix.system }}_compare.root" \
+            --plot-dir "$RUNNER_TEMP/${{ matrix.system }}_plots" \
+            2>&1 | tee "$log"
+          echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Step summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/compare.log"
+          {
+            echo "### HIPO Histos Comparison — ${{ matrix.system }}"
+            echo
+            echo "| Metric | Value |"
+            echo "| --- | --- |"
+            echo "| System | ${{ matrix.system }} |"
+            echo "| Events simulated | ${{ matrix.n_events }} |"
+            echo "| Reference | $(head -n1 "$RUNNER_TEMP/reference.txt" 2>/dev/null || echo unknown) |"
+            echo "| Result | ${{ steps.compare.outputs.status == '0' && 'pass' || 'fail' }} |"
+            echo
+            echo "<details><summary>Per-histogram diagnostics (chi2/ndf, occupied bins, median entries/bin)</summary>"
+            echo
+            echo '```'
+            grep -E "^(passed|failed)\b" "$log" 2>/dev/null || echo "no diagnostic output"
+            echo '```'
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload comparison artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.system }}-comparison
+          path: |
+            ${{ runner.temp }}/${{ matrix.system }}_plots
+            ${{ runner.temp }}/${{ matrix.system }}_compare.root
+            ${{ runner.temp }}/compare.log
+          if-no-files-found: warn
+
+      - name: Fail if comparison failed
+        if: ${{ steps.compare.outputs.status != '0' }}
+        run: exit 1

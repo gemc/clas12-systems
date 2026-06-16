@@ -59,33 +59,85 @@ bool GStreamerHIPOFactory::publishEventDigitizedDataImpl(
         auto intVars       = hit->getIntObservablesMap(0);
         auto dblVars       = hit->getDblObservablesMap(0);
 
-        // sector / layer / order are bytes; component is a short.
-        // They come from the hit identity (set by the digitization plugin).
-        auto putIdentity = [&](hipo::bank& bank) {
+        auto putIntColumn = [&](hipo::bank& bank, const std::string& col, int val) {
+            if (!bank.getSchema().exists(col.c_str())) return;
+
+            switch (bank.getSchema().getEntryType(col.c_str())) {
+            case hipo::kByte:
+                bank.putByte(col.c_str(), nh, static_cast<int8_t>(val));
+                break;
+            case hipo::kShort:
+                bank.putShort(col.c_str(), nh, static_cast<int16_t>(val));
+                break;
+            case hipo::kInt:
+                bank.putInt(col.c_str(), nh, val);
+                break;
+            case hipo::kLong:
+                bank.putLong(col.c_str(), nh, static_cast<int64_t>(val));
+                break;
+            default:
+                break;
+            }
+        };
+
+        auto putFloatColumn = [&](hipo::bank& bank, const std::string& col, double val) {
+            if (!bank.getSchema().exists(col.c_str())) return;
+
+            switch (bank.getSchema().getEntryType(col.c_str())) {
+            case hipo::kByte:
+                bank.putByte(col.c_str(), nh, static_cast<int8_t>(val));
+                break;
+            case hipo::kShort:
+                bank.putShort(col.c_str(), nh, static_cast<int16_t>(val));
+                break;
+            case hipo::kInt:
+                bank.putInt(col.c_str(), nh, static_cast<int32_t>(val));
+                break;
+            case hipo::kFloat:
+                bank.putFloat(col.c_str(), nh, static_cast<float>(val));
+                break;
+            case hipo::kDouble:
+                bank.putDouble(col.c_str(), nh, val);
+                break;
+            case hipo::kLong:
+                bank.putLong(col.c_str(), nh, static_cast<int64_t>(val));
+                break;
+            default:
+                break;
+            }
+        };
+
+        // Touchable identities are defaults only. Detector digitization code may publish output
+        // variables with the same bank column names but different meanings, such as DC global
+        // layer 1..36 versus the touchable's local layer 1..6.
+        auto putIdentityDefaults = [&](hipo::bank& bank) {
             for (const auto& [idName, idVal] : identityMap) {
-                if (idName == "sector" || idName == "layer" || idName == "order") {
-                    bank.putByte(idName.c_str(), nh, static_cast<int8_t>(idVal));
-                }
-                else if (idName == "component") {
-                    bank.putShort(idName.c_str(), nh, static_cast<int16_t>(idVal));
-                }
+                putIntColumn(bank, idName, idVal);
             }
         };
 
         auto fillBank = [&](hipo::bank& bank, const std::string& prefix) {
-            putIdentity(bank);
+            putIdentityDefaults(bank);
             const std::size_t prefixLen = prefix.size();
 
             for (const auto& [name, val] : intVars) {
+                if (bank.getSchema().exists(name.c_str())) {
+                    putIntColumn(bank, name, val);
+                    continue;
+                }
                 if (name.rfind(prefix, 0) == 0) {
                     std::string col = name.substr(prefixLen);
-                    bank.putInt(col.c_str(), nh, val);
+                    putIntColumn(bank, col, val);
                 }
             }
             for (const auto& [name, val] : dblVars) {
+                if (bank.getSchema().exists(name.c_str())) {
+                    putFloatColumn(bank, name, val);
+                    continue;
+                }
                 if (name.rfind(prefix, 0) == 0) {
                     std::string col = name.substr(prefixLen);
-                    bank.putFloat(col.c_str(), nh, static_cast<float>(val));
+                    putFloatColumn(bank, col, val);
                 }
             }
         };

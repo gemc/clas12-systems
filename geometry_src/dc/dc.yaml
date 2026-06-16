@@ -27,7 +27,7 @@ gparticle:
   - name: e-
     p: 5000*MeV
     theta: 25*deg
+    delta_theta: 15*deg
     delta_p: 1*GeV
-    delta_theta: 1*deg
     delta_phi: 180*deg
 

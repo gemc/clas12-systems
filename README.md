@@ -56,26 +56,6 @@ The implementation intentionally avoids obsolete GEMC2 code paths such as the DC
 system should be ported locally under `geometry_src/<system>` and validated against the corresponding
 `geometry_source/<system>` output in [`gemc/clas12Tags`](https://github.com/gemc/clas12Tags).
 
-## Repository Layout
-
-| Path | Purpose |
-| --- | --- |
-| `geometry_src/` | Python geometry systems and coatjava installation helpers |
-| `geometry_src/dc/` | Drift-chamber GEMC3 geometry builder |
-| `geometry_src/dc/dc.py` | Executable entry point; run it from `geometry_src/dc` to write the geometry DB |
-| `geometry_src/dc/geometry.py` | DC volume construction from coatjava-generated volume records |
-| `geometry_src/dc/materials.py` | DC material definitions |
-| `geometry_src/dc/variations.py` | Local variation and run-number mapping used by the DC builder |
-| `geometry_src/coatjava_factories/` | Shared Java source-file launcher for coatjava geometry services |
-| `geometry_src/install_coatjava.sh` | Local coatjava installer used by Meson configure and CI |
-| `clas12-systems.pc.in` | pkg-config template; Meson fills `@PREFIX@`, `@PLUGINDIR@`, and `@VERSION@` at install time to produce `clas12-systems.pc`, which exposes the plugin directory so `GEMC_PLUGIN_PATH` can be set via `pkg-config --variable=plugindir clas12-systems` |
-| `meson.build` | System registry, geometry tests, and plugin build/install loop |
-| `meson/` | GEMC, Geant4, CCDB, HIPO, and CLAS12 magnetic-field dependency setup |
-| `ci/` | Docker, sanitizer, coatjava, Doxygen, and release automation |
-| `.github/workflows/` | CI, deploy, sanitizer, CodeQL, Doxygen, and binary-tarball workflows |
-
-Generated files such as `gemc.db`, `gemc.saved_configuration.yaml`, `dc__volumes_default.txt`, PyVista exports,
-and `__pycache__` directories should not be committed.
 
 ## Relationship To GEMC3
 
@@ -314,7 +294,8 @@ Relevant automation:
 
 | Workflow | Purpose |
 | --- | --- |
-| `deploy_and_test.yml` | Build and test CLAS12 systems in GEMC base images |
+| `deploy.yml` | Build and test CLAS12 systems in GEMC base images, then publish the images |
+| `pr-docker-image.yml` | Build a per-PR preview image so reviewers can test the branch without a local build |
 | `sanitize.yml` | Run CLAS12-system sanitizer builds without sanitizing third-party subprojects |
 | `codeql.yml` | Static analysis |
 | `doxygen.yml` | Documentation generation |
@@ -332,6 +313,11 @@ The base images come from:
 ```text
 ghcr.io/gemc/src
 ```
+
+Each pull request additionally publishes a ready-to-run, multi-arch preview image built from the branch
+(`ghcr.io/gemc/clas12-systems:<gemc-tag>-almalinux-<version>-pr-<number>`), so authors and reviewers can test it
+without a local build — see [Preview Container Image](CONTRIBUTING.md#preview-container-image) in the
+contributing guide. The image is deleted automatically when the pull request is closed.
 
 ## Documentation
 

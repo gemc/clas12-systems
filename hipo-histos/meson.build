@@ -11,6 +11,7 @@ if root_config.found()
         files(
             'common.cc',
             'dc/histos.cc',
+            'histos_compare.cc',
             'hipo-histos.cc',
             'subsystems.cc',
         ),

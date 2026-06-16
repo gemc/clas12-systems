@@ -15,9 +15,14 @@ cmake_opts.append_compile_args('c',   '-fPIC', '-w')
 cmake_opts.append_compile_args('cpp', '-fPIC', '-w')
 
 zlib_dep = dependency('zlib', static : false, required : true)
-clhep_deps = dependency('clhep', version : '>=2.4.7.1', include_type : 'system')
+# Link CLHEP and Geant4 statically (static : true) so the dlopen-able plugins embed only the
+# symbols they reference and carry no @rpath/libCLHEP* or @rpath/libG4* dependencies. The shared
+# variants resolve to install-name @rpath/... but Meson strips the build-tree rpath at install time
+# (no install_rpath is set on the plugin shared_library), which left the installed .gplugin with
+# "no LC_RPATH's found" at load. This mirrors gemc's own self-contained gstreamer plugins.
+clhep_deps = dependency('clhep', version : '>=2.4.7.1', static : true, include_type : 'system')
 
-geant4_core_dep = dependency('geant4_core', version : '>=11.3.2', method : 'pkg-config', include_type : 'system')
+geant4_core_dep = dependency('geant4_core', version : '>=11.3.2', method : 'pkg-config', static : true, include_type : 'system')
 geant4_core_deps = [geant4_core_dep]
 
 gemc_dep = dependency('gemc', required : false, include_type : 'system')

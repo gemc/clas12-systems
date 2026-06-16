@@ -22,13 +22,20 @@ class DCHistos final : public SubsystemHistos {
     const std::string &label() const override { return label_; }
     long events() const override { return events_; }
 
-    void fill(const hipo::bank &mc_true, const hipo::bank &dc_tdc);
+    void fill(const hipo::bank &mc_true, hipo::bank &dc_tdc);
     void finalize() override;
     void write(TDirectory *directory) const override;
     void save_plots(const std::string &plot_dir) const override;
 
     std::vector<TH1 *> comparison_histos() const override;
     std::vector<std::string> comparison_names() const override;
+    double comparison_plot_scale(const std::string &name, bool normalize) const override;
+    std::vector<TH2 *> comparison_2d_histos() const override;
+    std::vector<std::string> comparison_2d_names() const override;
+    std::vector<TH1 *> diagnostic_histos() const override;
+    std::vector<std::string> diagnostic_names() const override;
+    double diagnostic_scale(const std::string &name, bool normalize) const override;
+    TH1D *tdc_histo(int region, int sector) const;
 
   private:
     static constexpr int kDetectorId = 6;
@@ -37,12 +44,14 @@ class DCHistos final : public SubsystemHistos {
     static constexpr int kLayers = 36;
     static constexpr int kWires = 112;
     static constexpr int kBins = 300;
+    static constexpr int kZBins = kBins / 2;
 
     std::string label_;
     std::string safe_label_;
     double time_window_ns_ = 250.0;
     long events_ = 0;
     bool normalized_ = false;
+    bool warned_local_layers_ = false;
 
     std::array<double, kRegions> thresholds_mev_ = {0.0001, 0.0001, 0.0001};
     std::array<double, kRegions> electronics_window_ns_ = {250.0, 500.0, 500.0};
@@ -52,7 +61,10 @@ class DCHistos final : public SubsystemHistos {
     std::array<double, kRegions> r_max_ = {1950.0, 3000.0, 4800.0};
 
     std::array<std::unique_ptr<TH1D>, kRegions> z_vertex_;
+    std::array<std::array<double, kZBins>, kRegions> z_vertex_event_sum_sq_ = {};
     std::array<std::unique_ptr<TH1D>, kRegions> occupancy_summary_;
+    std::array<std::array<double, kSectors>, kRegions> occupancy_event_sum_sq_ = {};
+    std::array<std::array<std::unique_ptr<TH1D>, kSectors>, kRegions> tdc_;
     std::array<std::unique_ptr<TH2D>, kRegions> rz_vertex_;
     std::unique_ptr<TH2D> layer_wire_;
 
@@ -66,6 +78,9 @@ class DCSubsystem final : public Subsystem {
                                                    const RunOptions &options) const override;
     void process_file(const RunOptions &options, const InputSpec &input,
                       SubsystemHistos &histos) const override;
+    void save_comparison_plots(const std::vector<SubsystemHistos *> &histos,
+                               const std::string &plot_dir, const std::string &header,
+                               bool normalize, const DiagnosticSummary &diagnostics) const override;
 
   private:
     std::string name_ = "dc";

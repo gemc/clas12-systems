@@ -1,12 +1,11 @@
 experiment: clas12
 runno: 11
-nthreads: 2
+nthreads: 1
 
 verbosity:
   - g4system: 1
   - gemc: 1
   - dc: 1
-
 
 gsystem:
   - name: dc
@@ -26,8 +25,9 @@ g4camera:
 
 gparticle:
   - name: e-
-    p: 4000*MeV
-    theta: 20*deg
-    delta_theta: 10*deg
+    p: 5000*MeV
+    theta: 25*deg
+    delta_p: 1*GeV
+    delta_theta: 1*deg
     delta_phi: 180*deg
 

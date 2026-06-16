@@ -19,13 +19,16 @@ EXCLUDED_SYSTEM_DIRS = {"coatjava", "coatjava_src", "coatjava_factories"}
 GEOMETRY_FIELDS = (
     "name",
     "mother",
-    "description",
     "position",
     "rotation",
     "solid",
     "dimensions",
     "material",
+    "digitization",
+    "identifier",
 )
+# Values used by either schema to mean "no digitization / no identifier".
+EMPTY_TOKENS = {"", "no", "none", "null"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,7 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory for generated ASCII files. Defaults to a temporary directory.",
     )
     parser.add_argument("--keep", action="store_true", help="Keep the generated work directory.")
-    parser.add_argument("--diff", action="store_true", help="Print field-level differences for mismatches.")
     return parser
 
 
@@ -78,6 +80,52 @@ def discover_systems() -> list[str]:
 
 def normalize_field(value: str) -> str:
     return " ".join(value.replace(",", " ").split())
+
+
+def normalize_digitization(value: str) -> str:
+    """Canonicalize a digitization/sensitivity name; empty markers map to "".
+
+    clas12Tags stores the digitization plugin in the ``sensitivity`` column ("no" when absent);
+    pygemc stores it in the ``digitization`` column ("NULL" when ``None``).
+    """
+    text = value.strip()
+    if text.lower() in EMPTY_TOKENS:
+        return ""
+    return text
+
+
+def normalize_identifier(value: str, schema: str) -> str:
+    """Expand an identifier string into a canonical ``name=value`` sequence.
+
+    The two schemas serialize identifiers differently:
+      * clas12tags: space-separated triplets ``name manual value`` (the rule word is dropped).
+      * pygemc: ``set_identifier`` output ``name: value, name: value`` (comma-separated pairs).
+
+    Both collapse to ``name=value name=value`` so they can be compared directly. Empty markers
+    ("no"/"none"/"null") map to "". Unexpected layouts fall back to the normalized raw string.
+    """
+    text = value.strip()
+    if text.lower() in EMPTY_TOKENS:
+        return ""
+
+    pairs: list[tuple[str, str]] = []
+    if schema == "clas12tags":
+        tokens = text.split()
+        if len(tokens) % 3 != 0:
+            return normalize_field(text)
+        for index in range(0, len(tokens), 3):
+            pairs.append((tokens[index], tokens[index + 2]))
+    else:
+        for chunk in text.split(","):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            if ":" not in chunk:
+                return normalize_field(text)
+            name, tag = chunk.split(":", 1)
+            pairs.append((name.strip(), tag.strip()))
+
+    return " ".join(f"{name}={tag}" for name, tag in pairs)
 
 
 def parse_pipe_rows(path: Path) -> list[list[str]]:
@@ -104,6 +152,8 @@ def old_geometry_record(row: list[str]) -> dict[str, str]:
         "solid": normalize_field(row[6]),
         "dimensions": normalize_field(row[7]),
         "material": normalize_field(row[8]),
+        "digitization": normalize_digitization(row[15]),
+        "identifier": normalize_identifier(row[17], "clas12tags"),
     }
 
 
@@ -117,6 +167,8 @@ def new_geometry_record(row: list[str]) -> dict[str, str]:
         "solid": normalize_field(row[1]),
         "dimensions": normalize_field(row[2]),
         "material": normalize_field(row[3]),
+        "digitization": normalize_digitization(row[13]),
+        "identifier": normalize_identifier(row[14], "pygemc"),
     }
 
 
@@ -124,7 +176,7 @@ def semantic_records(path: Path, schema: str) -> dict[str, dict[str, str]]:
     records = {}
     for row in parse_pipe_rows(path):
         if schema == "clas12tags":
-            required_row_size(row, 9, path)
+            required_row_size(row, 18, path)
             record = old_geometry_record(row)
         else:
             required_row_size(row, 20, path)
@@ -194,7 +246,6 @@ def compare_variation(
     variation: str,
     generated: Path,
     reference: Path,
-    args: argparse.Namespace,
 ) -> tuple[bool, str]:
     generated_records = semantic_records(generated, "pygemc")
     reference_records = semantic_records(reference, "clas12tags")
@@ -207,8 +258,7 @@ def compare_variation(
         f"{system}/{variation}: differs "
         f"({len(generated_records)} generated rows, {len(reference_records)} reference rows)"
     )
-    if args.diff:
-        message += "\n" + "\n".join(differences)
+    message += "\n" + "\n".join(differences)
     return False, message
 
 
@@ -240,7 +290,6 @@ def compare_system(system: str, args: argparse.Namespace, output_dir: Path) -> t
             variation,
             generated_files[variation],
             reference_files[variation],
-            args,
         )
         messages.append(message)
         ok = ok and variation_ok

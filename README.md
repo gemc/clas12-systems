@@ -11,7 +11,7 @@
 
 [badge-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml/badge.svg
 [badge-ascii-geometry]: https://github.com/gemc/clas12-systems/workflows/ASCII%20Geometry%20Comparison/badge.svg
-[badge-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy_and_test.yml/badge.svg
+[badge-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy.yml/badge.svg
 [badge-sanitize]: https://github.com/gemc/clas12-systems/actions/workflows/sanitize.yml/badge.svg
 [badge-codeql]: https://github.com/gemc/clas12-systems/actions/workflows/codeql.yml/badge.svg
 [badge-doxygen]: https://github.com/gemc/clas12-systems/actions/workflows/doxygen.yml/badge.svg
@@ -147,14 +147,13 @@ scripts/compare_ascii_geometry.py dc
 ```
 
 With no system arguments, the script checks every local `geometry_src/<system>/<system>.py` implementation. The
-script maps GEMC2 and GEMC3 ASCII columns onto common geometry fields and compares only those field values by
-volume name, so formatting and column-order differences do not hide real geometry matches.
+script maps GEMC2 and GEMC3 ASCII columns onto common geometry fields — name, mother, position, rotation, solid,
+dimensions, material, digitization (GEMC2 `sensitivity`), and identifier (GEMC2 `identifiers`, expanded to a
+canonical `name=value` form) — and compares only those field values by volume name, so formatting and
+column-order differences do not hide real geometry matches.
 
-Use `--diff` to print field-level mismatches:
-
-```shell
-scripts/compare_ascii_geometry.py dc --diff
-```
+When any field differs the script prints the field-level mismatches and exits with status `1`; an all-match run
+exits with status `0`.
 
 ## Placement And Rotations
 

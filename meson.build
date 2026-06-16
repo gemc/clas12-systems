@@ -129,6 +129,7 @@ endforeach
 # Output plugins (format-specific gstreamer plugins, not detector-geometry code)
 # ---------------------------------------------------------------------------
 subdir('plugins/hipo')
+subdir('hipo-histos')
 
 # ---------------------------------------------------------------------------
 # Build and install all registered shared-library plugins

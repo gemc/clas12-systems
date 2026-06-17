@@ -123,8 +123,14 @@ jobs:
           gemc "${{ matrix.system }}.yaml" \
             -n="${{ matrix.n_events }}" \
             -sql="$GITHUB_WORKSPACE/build/clas12.db"
-          # The hipo gstreamer writes <filename>.hipo; dc.yaml uses filename: dc.
-          ls -l "${{ matrix.system }}.hipo"
+          # The hipo gstreamer writes <filename>.hipo (this system's yaml uses <system>_t0).
+          # If the hipo is missing, list what was produced — a duplicate gstreamer output
+          # name in the yaml (csv and hipo sharing a filename) can drop the hipo stream.
+          ls -l "${{ matrix.system }}_t0.hipo" || {
+            echo "ERROR: ${{ matrix.system }}_t0.hipo not found. Produced files:" >&2
+            ls -l ./*.hipo 2>/dev/null || ls -l
+            exit 1
+          }
 
       - name: Compare against reference
         id: compare

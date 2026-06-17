@@ -27,7 +27,9 @@ void help()
         << "  --subsystem NAME       Subsystem to analyze. Currently supported: dc.\n"
         << "  --compare-system NAME  Compare this subsystem using exactly two HIPO files.\n"
         << "  -o, --output FILE      ROOT output file. Default: hipo-histos.root.\n"
-        << "  --plot-dir DIR         Directory for PNG plots. Default: hipo-histos-plots.\n"
+        << "  --plot-dir DIR         Directory for plots. Default: hipo-histos-plots.\n"
+        << "  --plot-format EXT      Plot file format/extension. Default: png. Use pdf or svg\n"
+        << "                         where ROOT lacks png support (no asimage feature).\n"
         << "  --label LABEL          Input label. May be specified once per input file.\n"
         << "  -n, --max-events N     Maximum events per input file. Default: all.\n"
         << "  --time-window NS       Simulated event time window in ns. Default: 250.\n"
@@ -72,6 +74,8 @@ RunOptions parse_args(int argc, char **argv)
             options.output_root = require_value(i, argc, argv, arg);
         } else if (arg == "--plot-dir") {
             options.plot_dir = require_value(i, argc, argv, arg);
+        } else if (arg == "--plot-format") {
+            options.plot_format = require_value(i, argc, argv, arg);
         } else if (arg == "--label") {
             labels.push_back(require_value(i, argc, argv, arg));
         } else if (arg == "-n" || arg == "--max-events") {
@@ -187,7 +191,7 @@ void save_comparison(const std::vector<SubsystemHistos *> &histos, const std::st
         const auto status = diagnostics.statuses.find(names[index]);
         const bool has_status = status != diagnostics.statuses.end();
         const bool passed = has_status && status->second;
-        draw_overlay(comparison, labels, names[index], plot_dir + "/compare_" + names[index] + ".png", log_y,
+        draw_overlay(comparison, labels, names[index], plot_file(plot_dir, "compare_" + names[index]), log_y,
                      header, has_status, passed);
     }
 
@@ -227,7 +231,7 @@ void save_comparison(const std::vector<SubsystemHistos *> &histos, const std::st
         const bool has_status = status != diagnostics.statuses.end();
         const bool passed = has_status && status->second;
         draw_2d_comparison(comparison[0], comparison[1], labels, names_2d[index],
-                           plot_dir + "/compare_" + names_2d[index] + ".png", header,
+                           plot_file(plot_dir, "compare_" + names_2d[index]), header,
                            has_status, passed);
     }
 }
@@ -375,6 +379,7 @@ int main(int argc, char **argv)
         }
 
         set_root_style(options.interactive);
+        set_plot_extension(options.plot_format);
         const bool diagnostics_passed = run_subsystem(options);
         std::cout << "Wrote " << options.output_root << "\n";
         if (options.make_plots) {

@@ -514,7 +514,7 @@ void DCHistos::save_plots(const std::string &plot_dir) const
         draw_pad_label(region_label + " z vertex");
     }
 
-    canvas->SaveAs((plot_dir + "/" + safe_label_ + "_dc_summary.png").c_str());
+    canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_dc_summary").c_str());
     show_canvas(canvas);
 
     auto *tdc_canvas = make_canvas("c_" + safe_label_ + "_dc_tdc", label_ + " DC TDC", 2200, 1200);
@@ -529,17 +529,17 @@ void DCHistos::save_plots(const std::string &plot_dir) const
                                 region == 0 && sector == 0);
         }
     }
-    tdc_canvas->SaveAs((plot_dir + "/" + safe_label_ + "_dc_tdc.png").c_str());
+    tdc_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_dc_tdc").c_str());
     show_canvas(tdc_canvas);
 
     draw_2d(layer_wire_.get(), "DC layer-wire occupancy",
-            plot_dir + "/" + safe_label_ + "_dc_layer_wire_occupancy.png");
+            plot_file(plot_dir, safe_label_ + "_dc_layer_wire_occupancy"));
     draw_overlay({mc_particle_momentum_.get()}, {label_}, "MC particle momentum",
-                 plot_dir + "/" + safe_label_ + "_mc_particle_momentum.png");
+                 plot_file(plot_dir, safe_label_ + "_mc_particle_momentum"));
     draw_overlay({mc_particle_theta_.get()}, {label_}, "MC particle theta",
-                 plot_dir + "/" + safe_label_ + "_mc_particle_theta.png");
+                 plot_file(plot_dir, safe_label_ + "_mc_particle_theta"));
     draw_overlay({mc_particle_phi_.get()}, {label_}, "MC particle phi",
-                 plot_dir + "/" + safe_label_ + "_mc_particle_phi.png");
+                 plot_file(plot_dir, safe_label_ + "_mc_particle_phi"));
 }
 
 std::vector<TH1 *> DCHistos::comparison_histos() const
@@ -775,6 +775,6 @@ void DCSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
     }
 
     draw_canvas_header(canvas, header);
-    canvas->SaveAs((plot_dir + "/compare_dc_tdc.png").c_str());
+    canvas->SaveAs(plot_file(plot_dir, "compare_dc_tdc").c_str());
     show_canvas(canvas);
 }

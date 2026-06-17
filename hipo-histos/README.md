@@ -72,3 +72,6 @@ Useful options:
 - `--interactive`: show the ROOT canvases and keep the GUI open after writing output.
 - `--time-window NS`: simulated event time window in ns. The DC default is 250 ns.
 - `--no-plots`: write only the ROOT output file.
+- `--plot-format EXT`: plot file format/extension (default `png`). Use a vector format such as `pdf` or
+  `svg` when running against a ROOT build without the `asimage` feature, which cannot write `png`/`jpg`
+  (`SaveAs` silently produces nothing). The CI comparison uses `pdf`.

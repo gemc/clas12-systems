@@ -23,6 +23,7 @@ struct RunOptions {
     std::vector<InputSpec> inputs;
     std::string output_root = "hipo-histos.root";
     std::string plot_dir = "hipo-histos-plots";
+    std::string plot_format = "png";
     long max_events = -1;
     int print_interval = 10000;
     double time_window_ns = 250.0;
@@ -62,6 +63,10 @@ class SubsystemHistos {
 std::string file_stem(const std::string &path);
 std::string sanitize_root_name(const std::string &name);
 void ensure_directory(const std::string &path);
+// Plot output format (file extension) used by all SaveAs calls. Default "png"; ROOT builds
+// without the asimage feature cannot write png/jpg and need a vector format (e.g. pdf, svg).
+void set_plot_extension(const std::string &ext);
+std::string plot_file(const std::string &dir, const std::string &stem);
 void set_root_style(bool interactive);
 TCanvas *make_canvas(const std::string &name, const std::string &title, int width = 1100, int height = 800);
 void draw_canvas_header(TCanvas *canvas, const std::string &header);

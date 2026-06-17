@@ -107,6 +107,26 @@ void ensure_directory(const std::string &path)
     }
 }
 
+namespace {
+std::string g_plot_extension = "png";
+} // namespace
+
+void set_plot_extension(const std::string &ext)
+{
+    std::string value = ext;
+    if (!value.empty() && value.front() == '.') {
+        value.erase(value.begin());
+    }
+    if (!value.empty()) {
+        g_plot_extension = value;
+    }
+}
+
+std::string plot_file(const std::string &dir, const std::string &stem)
+{
+    return dir + "/" + stem + "." + g_plot_extension;
+}
+
 void set_root_style(bool interactive)
 {
     gROOT->SetBatch(!interactive);

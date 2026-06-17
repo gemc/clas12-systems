@@ -140,44 +140,26 @@ jobs:
           hipo_histos="$PWD/install/bin/hipo-histos"
           gemc3_hipo="$PWD/geometry_src/${{ matrix.system }}/${{ matrix.system }}_t0.hipo"
 
-          # Diagnose ROOT image support: PNG/JPEG export needs the 'asimage' feature
-          # (libAfterImage), which is compile-time in ROOT. If absent, SaveAs(...png) writes
-          # nothing while .root/.pdf still work. Source the gemc env so root* are on PATH.
-          export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
-          . /usr/local/bin/docker-entrypoint.sh 2>/dev/null || true
-          echo "ROOT features: $(root-config --features 2>/dev/null || echo '(root-config not found)')"
-          root -l -b -q -e 'TCanvas c("c","c",200,200); c.SaveAs("/tmp/rtest.png"); c.SaveAs("/tmp/rtest.pdf"); printf("png=%d pdf=%d\n", gSystem->AccessPathName("/tmp/rtest.png")?0:1, gSystem->AccessPathName("/tmp/rtest.pdf")?0:1);' 2>&1 | sed 's/^/  rtest: /' || true
-
           # Write outputs inside the workspace: in a container job $RUNNER_TEMP (/__w/_temp)
           # and the runner.temp expression (/home/runner/work/_temp) differ, so artifacts
           # written under RUNNER_TEMP are invisible to the upload-artifact step.
           out_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare"
           mkdir -p "$out_dir/plots"
 
-          # ROOT runs in batch mode but still needs an X display to rasterize PNGs in this
-          # image (SaveAs(...png) writes nothing headlessly). Run under a virtual framebuffer;
-          # install xvfb if the image lacks it.
-          xvfb=""
-          if command -v xvfb-run >/dev/null 2>&1; then
-            xvfb="xvfb-run -a"
-          elif command -v apt-get >/dev/null 2>&1; then
-            apt-get update >/dev/null 2>&1 && \
-              apt-get install -y --no-install-recommends xvfb >/dev/null 2>&1 || true
-            command -v xvfb-run >/dev/null 2>&1 && xvfb="xvfb-run -a"
-          fi
-          [[ -z "$xvfb" ]] && echo "WARNING: xvfb-run unavailable; PNG plots may not be produced" >&2
-
+          # This image's ROOT lacks the asimage feature, so it cannot write png/jpg — only the
+          # .root file and vector formats. Emit PDF plots, which ROOT always writes in batch.
           set +e
-          $xvfb "$hipo_histos" \
+          "$hipo_histos" \
             --compare-system "${{ matrix.system }}" \
             "$RUNNER_TEMP/reference.hipo" "$gemc3_hipo" \
             --label clas12Tags --label gemc3 \
             --diagnostics --fail-on-diff --max-integral-diff 0.1 \
+            --plot-format pdf \
             -o "$out_dir/${{ matrix.system }}_compare.root" \
             --plot-dir "$out_dir/plots" \
             2>&1 | tee "$out_dir/compare.log"
           echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-          echo "Plots produced:"; ls -R 
+          echo "Plots produced:"; ls -l "$out_dir/plots"
 
       - name: Step summary
         if: ${{ always() }}
@@ -208,24 +190,40 @@ jobs:
         shell: bash
         run: |
           plot_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare/plots"
+          thumb_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare/thumbs"
+          mkdir -p "$thumb_dir"
 
           echo "#### Comparison plots" >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
 
-          if [[ ! -d "$plot_dir" ]] || ! ls "$plot_dir"/compare_*.png >/dev/null 2>&1; then
+          if [[ ! -d "$plot_dir" ]] || ! ls "$plot_dir"/compare_*.pdf >/dev/null 2>&1; then
             echo "_No comparison plots were produced (see the ${{ matrix.system }}-comparison artifact)._" \
               >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          # Embed each comparison PNG inline as a base64 data URI, scaled for display with the
-          # HTML width attribute. width only scales display, not bytes — the full image is still
-          # carried — so a byte budget keeps the summary under its ~1 MiB cap.
+          # Plots are PDF (ROOT here cannot write png). Rasterize to PNG for inline preview with
+          # pdftoppm (poppler) — no ROOT or X display needed. Install poppler-utils if absent.
+          if ! command -v pdftoppm >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+            apt-get update >/dev/null 2>&1 && \
+              apt-get install -y --no-install-recommends poppler-utils >/dev/null 2>&1 || true
+          fi
+          if ! command -v pdftoppm >/dev/null 2>&1; then
+            echo "_Plots are in the **${{ matrix.system }}-comparison** artifact (PDF); inline preview unavailable (no pdftoppm)._" \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Embed each plot inline as a base64 PNG data URI; a byte budget keeps the summary
+          # under its ~1 MiB cap (width only scales display, not bytes).
           budget=$((900 * 1024))
           used=0
-          for png in "$plot_dir"/compare_*.png; do
+          for pdf in "$plot_dir"/compare_*.pdf; do
+            [[ -f "$pdf" ]] || continue
+            name="$(basename "$pdf" .pdf)"
+            png="$thumb_dir/$name.png"
+            pdftoppm -png -singlefile -scale-to-x 600 -scale-to-y -1 "$pdf" "$thumb_dir/$name" >/dev/null 2>&1 || continue
             [[ -f "$png" ]] || continue
-            name="$(basename "$png" .png)"
             b64="$(base64 -w0 "$png" 2>/dev/null || base64 "$png" | tr -d '\n')"
             used=$(( used + ${#b64} ))
             if (( used > budget )); then

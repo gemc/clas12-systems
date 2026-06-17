@@ -139,6 +139,15 @@ jobs:
           set -euo pipefail
           hipo_histos="$PWD/install/bin/hipo-histos"
           gemc3_hipo="$PWD/geometry_src/${{ matrix.system }}/${{ matrix.system }}_t0.hipo"
+
+          # Diagnose ROOT image support: PNG/JPEG export needs the 'asimage' feature
+          # (libAfterImage), which is compile-time in ROOT. If absent, SaveAs(...png) writes
+          # nothing while .root/.pdf still work. Source the gemc env so root* are on PATH.
+          export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
+          . /usr/local/bin/docker-entrypoint.sh 2>/dev/null || true
+          echo "ROOT features: $(root-config --features 2>/dev/null || echo '(root-config not found)')"
+          root -l -b -q -e 'TCanvas c("c","c",200,200); c.SaveAs("/tmp/rtest.png"); c.SaveAs("/tmp/rtest.pdf"); printf("png=%d pdf=%d\n", gSystem->AccessPathName("/tmp/rtest.png")?0:1, gSystem->AccessPathName("/tmp/rtest.pdf")?0:1);' 2>&1 | sed 's/^/  rtest: /' || true
+
           # Write outputs inside the workspace: in a container job $RUNNER_TEMP (/__w/_temp)
           # and the runner.temp expression (/home/runner/work/_temp) differ, so artifacts
           # written under RUNNER_TEMP are invisible to the upload-artifact step.
@@ -168,7 +177,7 @@ jobs:
             --plot-dir "$out_dir/plots" \
             2>&1 | tee "$out_dir/compare.log"
           echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-          echo "Plots produced:"; ls -l "$out_dir/plots" || true
+          echo "Plots produced:"; ls -R 
 
       - name: Step summary
         if: ${{ always() }}

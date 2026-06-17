@@ -37,77 +37,65 @@ API:
   write GEMC databases, preview geometry with PyVista, and export VTK.js scenes.
 - [`gemc/home`](https://github.com/gemc/home) contains the public GEMC website, installation pages, tutorials,
   examples, and generated documentation assets.
-- [`gemc/clas12Tags`](https://github.com/gemc/clas12Tags) is the GEMC2 CLAS12 geometry source used as the
-  migration reference while systems are ported to GEMC3.
 
-The repository goal is to keep CLAS12 detector descriptions in small, reviewable Python geometry systems while
-using GEMC3 for the common simulation runtime. Geometry scripts write SQLite databases through `pygemc`; GEMC
-loads those databases at run time and constructs the Geant4 geometry.
+<br/>
 
 ## Current Scope
 
-This repository is under active migration from GEMC2. The first GEMC3 system in the registry is:
+This repository is under active migration from [`gemc/clas12Tags`](https://github.com/gemc/clas12Tags). The first GEMC3 system in the registry is:
 
-| System | Status | Notes |
-| --- | --- | --- |
-| `dc` | Ported geometry builder | Uses coatjava to generate drift-chamber volumes and write SQLite rows |
-
-The implementation intentionally avoids obsolete GEMC2 code paths such as the DC `original` variation. Each new
-system should be ported locally under `geometry_src/<system>` and validated against the corresponding
-`geometry_source/<system>` output in [`gemc/clas12Tags`](https://github.com/gemc/clas12Tags).
+| System | Status              | Notes                            | 
+|--------|---------------------|----------------------------------|
+| `dc`   | geometry and plugin | Uses coatjava as geometry source |
 
 
-## Relationship To GEMC3
+<br/>
+
+## GEMC
 
 The core GEMC repository, [`gemc/src`](https://github.com/gemc/src), owns the runtime behavior. This includes:
 
-- `GVolume` loading from SQLite and ASCII rows
 - Geant4 solid, logical-volume, and physical-placement construction
-- active and passive Geant4 placement semantics through `GVolume.g4placement_type`
-- ordered rotations such as `ordered: yxz, ...`
-- dynamic C++ plugins with the `.gplugin` suffix
+- dynamic C++ plugins 
 - event generation, sensitive detectors, and output streamers
 
 This repository owns CLAS12-specific inputs to that runtime:
 
-- detector geometry scripts
-- CLAS12 material definitions when they are not standard Geant4 materials
+- detector geometry, material definitions,
 - run and variation mappings needed to reproduce CLAS12 geometry
-- system-specific plugins when a detector needs custom C++ behavior
-- validation against GEMC2 CLAS12 reference geometry
+- validation against GEMC2 CLAS12 reference geometry and output
 
-The [`gemc/pygemc`](https://github.com/gemc/pygemc) README is the reference for the Python API. The pattern used
-here should stay close to the `gemc-system-template` structure: a clean executable `<system>.py`, focused
-`geometry.py` and `materials.py` modules, and a `<system>.yaml` steering card that is immediately usable with
-GEMC and PyVista.
+The [`gemc/pygemc`](https://github.com/gemc/pygemc) repository defines the Python API.
+
+<br/>
 
 ## Geometry Workflow
 
-Each detector system should be self-contained under `geometry_src/<system>`.
+Each detector system is self-contained under `geometry_src/<system>`.
 
 A typical system directory contains:
 
-| File | Role |
-| --- | --- |
-| `<system>.py` | Executable main script; creates `autogeometry()` and publishes materials and volumes |
-| `geometry.py` | Geometry construction code |
-| `materials.py` | System material definitions |
-| `variations.py` | Optional run and variation mapping |
-| `<system>.yaml` | GEMC steering card for quick local runs |
-| `../coatjava_factories/CoatjavaFactory.java` | Optional coatjava bridge for CLAS12 Java geometry services |
-| `plugin/meson.build` | Optional C++ plugin registration for digitization or other runtime extensions |
+| File                                         | Role                                                                                 |
+|----------------------------------------------|--------------------------------------------------------------------------------------|
+| `<system>.py`                                | Executable main script; creates `autogeometry()` and publishes materials and volumes |
+| `geometry.py`                                | Geometry construction code                                                           |
+| `materials.py`                               | System material definitions                                                          |
+| `variations.py`                              | Optional run and variation mapping                                                   |
+| `<system>.yaml`                              | GEMC steering card for quick local runs                                              |
+| `../coatjava_factories/CoatjavaFactory.java` | Optional coatjava bridge, in case of Java geometry services                          |
+| `plugin/meson.build`                         | Optional C++ plugin registration for digitization or other runtime extensions        |
 
 The main script should be executable and runnable directly from its directory:
 
 ```shell
 cd geometry_src/dc
-./dc.py -f sqlite -sql gemc.db
+./dc.py 
 ```
 
 Use PyVista options from `pygemc` when a system is ready for visual inspection:
 
 ```shell
-./dc.py -pvvtk dc -pvz 0.001
+./dc.py -pvb
 ```
 
 Run GEMC with the local steering card:
@@ -116,6 +104,8 @@ Run GEMC with the local steering card:
 gemc dc.yaml
 gemc dc.yaml -gui
 ```
+
+<br/>
 
 ## Reference Checks
 
@@ -135,16 +125,18 @@ column-order differences do not hide real geometry matches.
 When any field differs the script prints the field-level mismatches and exits with status `1`; an all-match run
 exits with status `0`.
 
+<br/>
+
 ## Placement And Rotations
 
 GEMC3 supports both Geant4 placement conventions through `GVolume.g4placement_type`:
 
-| Value | Meaning |
-| --- | --- |
-| `active` | Default GEMC3 behavior; uses `G4Transform3D(rotation, translation)` |
+| Value     | Meaning                                                                                |
+|-----------|----------------------------------------------------------------------------------------|
+| `active`  | Default GEMC3 behavior; uses `G4Transform3D(rotation, translation)`                    |
 | `passive` | GEMC2/clas12Tags-compatible behavior; uses `G4PVPlacement(rotation, translation, ...)` |
 
-CLAS12 detector volumes ported from GEMC2 should set:
+CLAS12 detector volumes ported from GEMC2 should use the passive placement convention:
 
 ```python
 gvolume.g4placement_type = "passive"
@@ -159,7 +151,9 @@ ordered: yxz, 0*deg, 0*deg, 6*deg
 GEMC applies ordered rotations in the specified order. This is required for DC and is expected to matter for
 other CLAS12 systems ported from `clas12Tags`.
 
-## coatjava
+<br/>
+
+## Coatjava
 
 Some CLAS12 systems use coatjava so simulation geometry follows the same Java geometry service used by
 reconstruction. This repository keeps coatjava local to `geometry_src`:
@@ -178,13 +172,15 @@ provide the prerequisites first:
 
 The helper scripts are:
 
-| Path | Purpose |
-| --- | --- |
-| `geometry_src/install_coatjava.sh` | Installs the local coatjava copy |
-| `ci/install_coatjava_deps.sh` | Installs Java, Maven, git-lfs, and jq in supported CI images |
-| `ci/setup_coatjava.sh` | CI helper that installs prerequisites and then coatjava if needed |
+| Path                               | Purpose                                                           |
+|------------------------------------|-------------------------------------------------------------------|
+| `geometry_src/install_coatjava.sh` | Installs the local coatjava copy                                  |
+| `ci/install_coatjava_deps.sh`      | Installs Java, Maven, git-lfs, and jq in supported CI images      |
+| `ci/setup_coatjava.sh`             | CI helper that installs prerequisites and then coatjava if needed |
 
 Do not remove an existing coatjava installation unless the reset flag is explicitly requested.
+
+<br/>
 
 ## Build And Test
 
@@ -215,6 +211,8 @@ clas12_systems = [
 
 Add a detector name to this list only when `geometry_src/<system>/<system>.py` is ready to generate valid GEMC
 geometry.
+
+<br/>
 
 ## Plugin Path
 
@@ -248,6 +246,9 @@ export PKG_CONFIG_PATH=/my/clas12/prefix/lib/pkgconfig:$PKG_CONFIG_PATH
 export GEMC_PLUGIN_PATH=$(pkg-config --variable=plugindir clas12-systems)
 ```
 
+<br/>
+
+
 ## Plugin Build Model
 
 System plugins use a registry pattern:
@@ -258,6 +259,8 @@ System plugins use a registry pattern:
 
 This keeps plugin installation consistent across CLAS12 systems and avoids each detector inventing its own build
 logic.
+
+<br/>
 
 ## Validation
 
@@ -286,21 +289,23 @@ Known DC expectations:
 - ordered rotations are preserved as `ordered: ...`
 - obsolete `original` variation is not supported
 
+<br/>
+
 ## CI And Releases
 
 CI builds this repository against GEMC base images published by [`gemc/src`](https://github.com/gemc/src).
 
 Relevant automation:
 
-| Workflow | Purpose |
-| --- | --- |
-| `deploy.yml` | Build and test CLAS12 systems in GEMC base images, then publish the images |
+| Workflow              | Purpose                                                                             |
+|-----------------------|-------------------------------------------------------------------------------------|
+| `deploy.yml`          | Build and test CLAS12 systems in GEMC base images, then publish the images          |
 | `pr-docker-image.yml` | Build a per-PR preview image so reviewers can test the branch without a local build |
-| `sanitize.yml` | Run CLAS12-system sanitizer builds without sanitizing third-party subprojects |
-| `codeql.yml` | Static analysis |
-| `doxygen.yml` | Documentation generation |
-| `binary_tarballs.yml` | Package installed CLAS12 systems prefixes |
-| `dev_release.yml` | Development release automation |
+| `sanitize.yml`        | Run CLAS12-system sanitizer builds without sanitizing third-party subprojects       |
+| `codeql.yml`          | Static analysis                                                                     |
+| `doxygen.yml`         | Documentation generation                                                            |
+| `binary_tarballs.yml` | Package installed CLAS12 systems prefixes                                           |
+| `dev_release.yml`     | Development release automation                                                      |
 
 Deploy images use the pattern:
 
@@ -319,17 +324,11 @@ Each pull request additionally publishes a ready-to-run, multi-arch preview imag
 without a local build — see [Preview Container Image](CONTRIBUTING.md#preview-container-image) in the
 contributing guide. The image is deleted automatically when the pull request is closed.
 
+<br/>
+
+
 ## Documentation
 
-Use the repository READMEs together:
-
-- [`gemc/src`](https://github.com/gemc/src) explains the GEMC runtime, build options, examples, streamers, and
-  Geant4 integration.
-- [`gemc/pygemc`](https://github.com/gemc/pygemc) explains the Python geometry API, template structure, CLI
-  tools, PyVista, and analyzers.
-- [`gemc/home`](https://github.com/gemc/home) contains the public documentation site and generated example
-  assets.
-
-When adding a mature CLAS12 system, update this README with the system status and update
-[`gemc/home`](https://github.com/gemc/home) when public documentation, screenshots, or interactive PyVista
-scenes should be published.
+- [GEMC homepage](https://gemc.github.io/home/)
+- [Python API repository](https://github.com/gemc/pygemc)
+- [GEMC2 / CLAS12 repository](https://github.com/gemc/clas12Tags)

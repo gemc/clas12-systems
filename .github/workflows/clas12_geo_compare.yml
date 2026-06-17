@@ -81,32 +81,41 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
 
-          join_lines() {
-            awk 'BEGIN { sep = "" } { printf "%s%s", sep, $0; sep = "; " } END { print "" }'
-          }
-
           {
             echo "### ASCII Geometry Comparison"
             echo
-            echo "| Detector | Result | Details |"
-            echo "| --- | --- | --- |"
+            echo "| Detector | Variation | Result | Details |"
+            echo "| --- | --- | --- | --- |"
 
             for script in geometry_src/*/*.py; do
               detector="$(basename "${script%.py}")"
               detector_dir="$(dirname "$script")"
               [[ "$detector_dir" == "geometry_src/$detector" ]] || continue
 
-              if grep -Eq "^${detector}: (missing|extra|generation failed|.+)" "$log"; then
-                details="$(grep -E "^${detector}: " "$log" | join_lines)"
-                echo "| ${detector} | fail | ${details} |"
-              elif grep -Eq "^${detector}/[^:]+: differs" "$log"; then
-                details="$(grep -E "^${detector}/[^:]+: differs" "$log" | join_lines)"
-                echo "| ${detector} | fail | ${details} |"
-              elif grep -Eq "^${detector}/[^:]+: ok" "$log"; then
-                details="$(grep -E "^${detector}/[^:]+: ok" "$log" | join_lines)"
-                echo "| ${detector} | pass | ${details} |"
-              else
-                echo "| ${detector} | fail | no comparison result found |"
+              emitted=0
+
+              # Detector-level messages (no variation): "<detector>: <message>"
+              # e.g. generation failed, missing reference dir, missing/extra variations.
+              while IFS= read -r line; do
+                [[ -n "$line" ]] || continue
+                msg="${line#"$detector": }"
+                echo "| ${detector} | — | fail | ${msg} |"
+                emitted=1
+              done < <(grep -E "^${detector}: " "$log" || true)
+
+              # Per-variation results: "<detector>/<variation>: ok|differs (...)"
+              while IFS= read -r line; do
+                [[ -n "$line" ]] || continue
+                rest="${line#"$detector"/}"     # "<variation>: <detail>"
+                variation="${rest%%:*}"          # "<variation>"
+                detail="${rest#*: }"             # "ok (...)" / "differs (...)"
+                if [[ "$detail" == ok* ]]; then result="pass"; else result="fail"; fi
+                echo "| ${detector} | ${variation} | ${result} | ${detail} |"
+                emitted=1
+              done < <(grep -E "^${detector}/[^:]+: " "$log" || true)
+
+              if [[ "$emitted" -eq 0 ]]; then
+                echo "| ${detector} | — | fail | no comparison result found |"
               fi
             done
           } >> "$GITHUB_STEP_SUMMARY"

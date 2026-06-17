@@ -145,8 +145,21 @@ jobs:
           out_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare"
           mkdir -p "$out_dir/plots"
 
+          # ROOT runs in batch mode but still needs an X display to rasterize PNGs in this
+          # image (SaveAs(...png) writes nothing headlessly). Run under a virtual framebuffer;
+          # install xvfb if the image lacks it.
+          xvfb=""
+          if command -v xvfb-run >/dev/null 2>&1; then
+            xvfb="xvfb-run -a"
+          elif command -v apt-get >/dev/null 2>&1; then
+            apt-get update >/dev/null 2>&1 && \
+              apt-get install -y --no-install-recommends xvfb >/dev/null 2>&1 || true
+            command -v xvfb-run >/dev/null 2>&1 && xvfb="xvfb-run -a"
+          fi
+          [[ -z "$xvfb" ]] && echo "WARNING: xvfb-run unavailable; PNG plots may not be produced" >&2
+
           set +e
-          "$hipo_histos" \
+          $xvfb "$hipo_histos" \
             --compare-system "${{ matrix.system }}" \
             "$RUNNER_TEMP/reference.hipo" "$gemc3_hipo" \
             --label clas12Tags --label gemc3 \
@@ -155,6 +168,7 @@ jobs:
             --plot-dir "$out_dir/plots" \
             2>&1 | tee "$out_dir/compare.log"
           echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          echo "Plots produced:"; ls -l "$out_dir/plots" || true
 
       - name: Step summary
         if: ${{ always() }}

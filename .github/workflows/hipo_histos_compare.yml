@@ -139,24 +139,28 @@ jobs:
           set -euo pipefail
           hipo_histos="$PWD/install/bin/hipo-histos"
           gemc3_hipo="$PWD/geometry_src/${{ matrix.system }}/${{ matrix.system }}_t0.hipo"
-          log="$RUNNER_TEMP/compare.log"
+          # Write outputs inside the workspace: in a container job $RUNNER_TEMP (/__w/_temp)
+          # and the runner.temp expression (/home/runner/work/_temp) differ, so artifacts
+          # written under RUNNER_TEMP are invisible to the upload-artifact step.
+          out_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare"
+          mkdir -p "$out_dir/plots"
 
           set +e
           "$hipo_histos" \
             --compare-system "${{ matrix.system }}" \
             "$RUNNER_TEMP/reference.hipo" "$gemc3_hipo" \
             --label clas12Tags --label gemc3 \
-            --diagnostics --fail-on-diff  --max-integral-diff 0.1 \
-            -o "$RUNNER_TEMP/${{ matrix.system }}_compare.root" \
-            --plot-dir "$RUNNER_TEMP/${{ matrix.system }}_plots" \
-            2>&1 | tee "$log"
+            --diagnostics --fail-on-diff --max-integral-diff 0.1 \
+            -o "$out_dir/${{ matrix.system }}_compare.root" \
+            --plot-dir "$out_dir/plots" \
+            2>&1 | tee "$out_dir/compare.log"
           echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Step summary
         if: ${{ always() }}
         shell: bash
         run: |
-          log="$RUNNER_TEMP/compare.log"
+          log="$GITHUB_WORKSPACE/${{ matrix.system }}_compare/compare.log"
           {
             echo "### HIPO Histos Comparison — ${{ matrix.system }}"
             echo
@@ -181,10 +185,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.system }}-comparison
-          path: |
-            ${{ runner.temp }}/${{ matrix.system }}_plots
-            ${{ runner.temp }}/${{ matrix.system }}_compare.root
-            ${{ runner.temp }}/compare.log
+          # Workspace-relative path: resolves consistently inside the job container.
+          path: ${{ matrix.system }}_compare
           if-no-files-found: warn
 
       - name: Fail if comparison failed

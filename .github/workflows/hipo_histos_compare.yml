@@ -132,7 +132,7 @@ jobs:
         run: |
           set -euo pipefail
           hipo_histos="$PWD/install/bin/hipo-histos"
-          gemc3_hipo="$PWD/geometry_src/${{ matrix.system }}/${{ matrix.system _t0.hipo"
+          gemc3_hipo="$PWD/geometry_src/${{ matrix.system }}/${{ matrix.system }}_t0.hipo"
           log="$RUNNER_TEMP/compare.log"
 
           set +e

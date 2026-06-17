@@ -104,9 +104,11 @@ jobs:
 
           workdir="geometry_src/${{ matrix.system }}"
           cd "$workdir"
+          # GEMC3 GOptions take CLI overrides as -key=value (a bare -key is parsed as an
+          # unknown switch). n = number of events, sql = geometry database path.
           gemc "${{ matrix.system }}.yaml" \
-            -n "${{ matrix.n_events }}" \
-            -sql "$GITHUB_WORKSPACE/build/clas12.db"
+            -n="${{ matrix.n_events }}" \
+            -sql="$GITHUB_WORKSPACE/build/clas12.db"
           # The hipo gstreamer writes <filename>.hipo; dc.yaml uses filename: dc.
           ls -l "${{ matrix.system }}.hipo"
 

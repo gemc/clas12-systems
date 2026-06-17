@@ -102,6 +102,20 @@ jobs:
           echo "GEMC_PLUGIN_PATH=$GEMC_PLUGIN_PATH"
           ls -l "$GEMC_PLUGIN_PATH"/*.gplugin
 
+          # The plugins link libccdb.so (ccdb is a CMake subproject built shared), so gemc
+          # needs it on the runtime path to dlopen them. Prefer the copy built in this repo
+          # (matching ABI); fall back to the image's gemc install.
+          ccdb_so="$(find "$PWD/build" "$PWD/install" -name 'libccdb.so*' -print -quit 2>/dev/null || true)"
+          if [[ -z "$ccdb_so" ]]; then
+            ccdb_so="$(find "$SIM_HOME" -name 'libccdb.so*' -print -quit 2>/dev/null || true)"
+          fi
+          if [[ -n "$ccdb_so" ]]; then
+            export LD_LIBRARY_PATH="$(dirname "$ccdb_so"):${LD_LIBRARY_PATH:-}"
+            echo "Added ccdb lib dir to LD_LIBRARY_PATH: $(dirname "$ccdb_so")"
+          else
+            echo "WARNING: libccdb.so not found; plugin dlopen may fail" >&2
+          fi
+
           workdir="geometry_src/${{ matrix.system }}"
           cd "$workdir"
           # GEMC3 GOptions take CLI overrides as -key=value (a bare -key is parsed as an

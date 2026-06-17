@@ -183,61 +183,9 @@ jobs:
             echo '```'
             echo
             echo "</details>"
+            echo
+            echo "_Comparison plots (PDF) are in the **${{ matrix.system }}-comparison** artifact._"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Embed comparison plots in summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          plot_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare/plots"
-          thumb_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare/thumbs"
-          mkdir -p "$thumb_dir"
-
-          echo "#### Comparison plots" >> "$GITHUB_STEP_SUMMARY"
-          echo >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ ! -d "$plot_dir" ]] || ! ls "$plot_dir"/compare_*.pdf >/dev/null 2>&1; then
-            echo "_No comparison plots were produced (see the ${{ matrix.system }}-comparison artifact)._" \
-              >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          # Plots are PDF (ROOT here cannot write png). Rasterize to PNG for inline preview with
-          # pdftoppm (poppler) — no ROOT or X display needed. Install poppler-utils if absent.
-          if ! command -v pdftoppm >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
-            apt-get update >/dev/null 2>&1 && \
-              apt-get install -y --no-install-recommends poppler-utils >/dev/null 2>&1 || true
-          fi
-          if ! command -v pdftoppm >/dev/null 2>&1; then
-            echo "_Plots are in the **${{ matrix.system }}-comparison** artifact (PDF); inline preview unavailable (no pdftoppm)._" \
-              >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          # Embed each plot inline as a base64 PNG data URI; a byte budget keeps the summary
-          # under its ~1 MiB cap (width only scales display, not bytes).
-          budget=$((900 * 1024))
-          used=0
-          for pdf in "$plot_dir"/compare_*.pdf; do
-            [[ -f "$pdf" ]] || continue
-            name="$(basename "$pdf" .pdf)"
-            png="$thumb_dir/$name.png"
-            pdftoppm -png -singlefile -scale-to-x 600 -scale-to-y -1 "$pdf" "$thumb_dir/$name" >/dev/null 2>&1 || continue
-            [[ -f "$png" ]] || continue
-            b64="$(base64 -w0 "$png" 2>/dev/null || base64 "$png" | tr -d '\n')"
-            used=$(( used + ${#b64} ))
-            if (( used > budget )); then
-              echo "_…more plots in the **${{ matrix.system }}-comparison** artifact (summary size limit reached)._" \
-                >> "$GITHUB_STEP_SUMMARY"
-              break
-            fi
-            {
-              echo "<img src=\"data:image/png;base64,${b64}\" width=\"480\" alt=\"${name}\"/>"
-              echo
-              echo "*${name}*"
-              echo
-            } >> "$GITHUB_STEP_SUMMARY"
-          done
 
       - name: Upload comparison artifacts
         if: ${{ always() }}

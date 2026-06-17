@@ -124,7 +124,7 @@ jobs:
             --compare-system "${{ matrix.system }}" \
             "$RUNNER_TEMP/reference.hipo" "$gemc3_hipo" \
             --label clas12Tags --label gemc3 \
-            --diagnostics --fail-on-diff --min-entries-per-bin 10 \
+            --diagnostics --fail-on-diff  --max-integral-diff 0.1 \
             -o "$RUNNER_TEMP/${{ matrix.system }}_compare.root" \
             --plot-dir "$RUNNER_TEMP/${{ matrix.system }}_plots" \
             2>&1 | tee "$log"

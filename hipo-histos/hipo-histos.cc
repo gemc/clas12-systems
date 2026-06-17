@@ -5,7 +5,9 @@
 #include "TApplication.h"
 #include "TFile.h"
 #include "TH1.h"
+#include "TH2.h"
 
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -187,6 +189,46 @@ void save_comparison(const std::vector<SubsystemHistos *> &histos, const std::st
         const bool passed = has_status && status->second;
         draw_overlay(comparison, labels, names[index], plot_dir + "/compare_" + names[index] + ".png", log_y,
                      header, has_status, passed);
+    }
+
+    const auto names_2d = histos.front()->comparison_2d_names();
+    if (names_2d.empty()) {
+        return;
+    }
+    const std::vector<TH2 *> histos_2d_a = histos[0]->comparison_2d_histos();
+    const std::vector<TH2 *> histos_2d_b = histos[1]->comparison_2d_histos();
+    if (names_2d.size() != histos_2d_a.size() || names_2d.size() != histos_2d_b.size()) {
+        throw std::runtime_error("Subsystem returned inconsistent 2D comparison histogram lists.");
+    }
+
+    for (std::size_t index = 0; index < names_2d.size(); ++index) {
+        std::vector<TH2 *> comparison;
+        std::vector<std::unique_ptr<TH2>> scaled;
+        const std::array<TH2 *, 2> source_histos = {histos_2d_a[index], histos_2d_b[index]};
+        for (std::size_t histo_index = 0; histo_index < histos.size(); ++histo_index) {
+            auto *histo = source_histos[histo_index];
+            if (histo == nullptr) {
+                throw std::runtime_error("Subsystem returned a null 2D comparison histogram: " +
+                                         names_2d[index]);
+            }
+            const double scale = histos[histo_index]->comparison_plot_scale(names_2d[index], normalize);
+            if (histo != nullptr && scale != 1.0) {
+                auto clone = std::unique_ptr<TH2>(static_cast<TH2 *>(histo->Clone()));
+                clone->SetDirectory(nullptr);
+                clone->Scale(scale);
+                comparison.push_back(clone.get());
+                scaled.push_back(std::move(clone));
+            } else {
+                comparison.push_back(histo);
+            }
+        }
+
+        const auto status = diagnostics.statuses.find(names_2d[index]);
+        const bool has_status = status != diagnostics.statuses.end();
+        const bool passed = has_status && status->second;
+        draw_2d_comparison(comparison[0], comparison[1], labels, names_2d[index],
+                           plot_dir + "/compare_" + names_2d[index] + ".png", header,
+                           has_status, passed);
     }
 }
 

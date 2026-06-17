@@ -22,7 +22,8 @@ class DCHistos final : public SubsystemHistos {
     const std::string &label() const override { return label_; }
     long events() const override { return events_; }
 
-    void fill(const hipo::bank &mc_true, hipo::bank &dc_tdc);
+    void fill(const hipo::bank &mc_true, hipo::bank &dc_tdc,
+              const hipo::bank &mc_particle);
     void finalize() override;
     void write(TDirectory *directory) const override;
     void save_plots(const std::string &plot_dir) const override;
@@ -67,8 +68,12 @@ class DCHistos final : public SubsystemHistos {
     std::array<std::array<std::unique_ptr<TH1D>, kSectors>, kRegions> tdc_;
     std::array<std::unique_ptr<TH2D>, kRegions> rz_vertex_;
     std::unique_ptr<TH2D> layer_wire_;
+    std::unique_ptr<TH1D> mc_particle_momentum_;
+    std::unique_ptr<TH1D> mc_particle_theta_;
+    std::unique_ptr<TH1D> mc_particle_phi_;
 
     void book();
+    void fill_mc_particles(const hipo::bank &mc_particle);
 };
 
 class DCSubsystem final : public Subsystem {

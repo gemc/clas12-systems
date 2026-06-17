@@ -71,5 +71,9 @@ void draw_overlay(const std::vector<TH1 *> &histos, const std::vector<std::strin
                   const std::string &title, const std::string &output_path, bool log_y = false,
                   const std::string &header = "", bool has_status = false, bool passed = false);
 void draw_2d(TH2 *histo, const std::string &title, const std::string &output_path);
+void draw_2d_comparison(TH2 *first, TH2 *second, const std::vector<std::string> &labels,
+                        const std::string &title, const std::string &output_path,
+                        const std::string &header = "", bool has_status = false,
+                        bool passed = false);
 
 #endif

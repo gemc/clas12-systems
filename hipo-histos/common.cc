@@ -7,6 +7,7 @@
 #include "TH2.h"
 #include "TLegend.h"
 #include "TLatex.h"
+#include "TPad.h"
 #include "TROOT.h"
 #include "TStyle.h"
 #include "TText.h"
@@ -14,6 +15,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <memory>
 #include <stdexcept>
 
 namespace {
@@ -29,6 +31,47 @@ double max_bin_content_with_error(const TH1 *histo)
         ymax = std::max(ymax, histo->GetBinContent(bin) + histo->GetBinError(bin));
     }
     return ymax;
+}
+
+std::unique_ptr<TH2> make_ratio_2d(const TH2 *first, const TH2 *second,
+                                   const std::string &name)
+{
+    if (first == nullptr || second == nullptr) {
+        return nullptr;
+    }
+
+    auto ratio = std::unique_ptr<TH2>(static_cast<TH2 *>(second->Clone(name.c_str())));
+    ratio->SetDirectory(nullptr);
+    ratio->Reset("ICES");
+
+    for (int xbin = 1; xbin <= first->GetNbinsX(); ++xbin) {
+        for (int ybin = 1; ybin <= first->GetNbinsY(); ++ybin) {
+            const double denominator = first->GetBinContent(xbin, ybin);
+            const double numerator = second->GetBinContent(xbin, ybin);
+            if (denominator <= 0.0) {
+                ratio->SetBinContent(xbin, ybin, 0.0);
+                ratio->SetBinError(xbin, ybin, 0.0);
+                continue;
+            }
+            ratio->SetBinContent(xbin, ybin, numerator / denominator);
+        }
+    }
+
+    return ratio;
+}
+
+void draw_2d_pad(TH2 *histo, const std::string &label)
+{
+    gPad->SetGrid();
+    gPad->SetRightMargin(0.16);
+    gPad->SetTopMargin(0.08);
+    histo->DrawCopy("colz");
+
+    TLatex latex;
+    latex.SetNDC(true);
+    latex.SetTextFont(43);
+    latex.SetTextSize(18);
+    latex.DrawLatex(0.12, 0.93, label.c_str());
 }
 
 } // namespace
@@ -159,7 +202,7 @@ void draw_overlay(const std::vector<TH1 *> &histos, const std::vector<std::strin
         histo->SetLineWidth(2);
         histo->SetMaximum(ymax * (log_y ? 5.0 : 1.25));
         histo->SetMinimum(log_y ? 0.1 : 0.0);
-        histo->Draw(drew_one ? "E1 same" : "E1");
+        histo->DrawCopy(drew_one ? "E1 same" : "E1");
         legend.AddEntry(histo, labels[i].c_str(), "lep");
         drew_one = true;
     }
@@ -167,7 +210,7 @@ void draw_overlay(const std::vector<TH1 *> &histos, const std::vector<std::strin
     if (has_status) {
         draw_status_label(passed);
     }
-    legend.Draw();
+    legend.DrawClone();
     draw_canvas_header(canvas, header);
     canvas->SaveAs(output_path.c_str());
     show_canvas(canvas);
@@ -182,7 +225,45 @@ void draw_2d(TH2 *histo, const std::string &title, const std::string &output_pat
     auto canvas = make_canvas("c_" + sanitize_root_name(output_path), title);
     canvas->SetGrid();
     canvas->SetRightMargin(0.15);
-    histo->Draw("colz");
+    histo->DrawCopy("colz");
+    canvas->SaveAs(output_path.c_str());
+    show_canvas(canvas);
+}
+
+void draw_2d_comparison(TH2 *first, TH2 *second, const std::vector<std::string> &labels,
+                        const std::string &title, const std::string &output_path,
+                        const std::string &header, bool has_status, bool passed)
+{
+    if (first == nullptr || second == nullptr || labels.size() < 2) {
+        return;
+    }
+
+    auto ratio = make_ratio_2d(first, second, "ratio_" + sanitize_root_name(title));
+    if (ratio == nullptr) {
+        return;
+    }
+
+    ratio->SetTitle((labels[1] + " / " + labels[0]).c_str());
+    ratio->GetZaxis()->SetTitle((labels[1] + " / " + labels[0]).c_str());
+    ratio->SetMinimum(0.0);
+    ratio->SetMaximum(2.0);
+
+    auto canvas = make_canvas("c_" + sanitize_root_name(output_path), title, 1800, 620);
+    canvas->Divide(3, 1, 0.001, 0.001);
+
+    canvas->cd(1);
+    draw_2d_pad(first, labels[0]);
+
+    canvas->cd(2);
+    draw_2d_pad(second, labels[1]);
+    if (has_status) {
+        draw_status_label(passed);
+    }
+
+    canvas->cd(3);
+    draw_2d_pad(ratio.get(), labels[1] + " / " + labels[0]);
+
+    draw_canvas_header(canvas, header);
     canvas->SaveAs(output_path.c_str());
     show_canvas(canvas);
 }

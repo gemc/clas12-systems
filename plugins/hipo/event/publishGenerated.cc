@@ -11,8 +11,8 @@ bool GStreamerHIPOFactory::publishEventGeneratedParticlesImpl(
     const std::string&            bankName,
     const GGeneratedParticleBank& particles) {
 
-    // MC::Event and MC::Particle are written once per event from the "generated" bank.
-    // The "generated_tracked" bank is a subset and would create duplicate rows.
+    // MC::Event and MC::Particle are written once per event from "generated".
+    // That bank contains runtime-generated particles plus source-only records not propagated in Geant4.
     if (bankName != "generated") return true;
     if (particles.empty()) return true;
 

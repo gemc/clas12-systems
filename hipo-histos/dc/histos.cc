@@ -148,7 +148,7 @@ void draw_comparison_pad(const std::vector<TH1 *> &histos, const std::vector<std
         histo->SetLineWidth(2);
         histo->SetMinimum(0.0);
         histo->SetMaximum(ymax > 0.0 ? ymax * 1.25 : 1.0);
-        histo->Draw(drew_one ? "E1 same" : "E1");
+        histo->DrawCopy(drew_one ? "E1 same" : "E1");
         drew_one = true;
     }
 
@@ -165,7 +165,7 @@ void draw_comparison_pad(const std::vector<TH1 *> &histos, const std::vector<std
                 legend.AddEntry(histos[i], labels[i].c_str(), "lep");
             }
         }
-        legend.Draw();
+        legend.DrawClone();
     }
 }
 
@@ -236,11 +236,57 @@ void DCHistos::book()
         0.5,
         kLayers + 0.5);
     layer_wire_->Sumw2();
+
+    mc_particle_momentum_ = std::make_unique<TH1D>(
+        (safe_label_ + "_mc_particle_momentum").c_str(),
+        "MC particle momentum;p [GeV];particles",
+        240,
+        0.0,
+        12.0);
+    mc_particle_momentum_->Sumw2();
+
+    mc_particle_theta_ = std::make_unique<TH1D>(
+        (safe_label_ + "_mc_particle_theta").c_str(),
+        "MC particle theta;#theta [deg];particles",
+        180,
+        0.0,
+        60.0);
+    mc_particle_theta_->Sumw2();
+
+    mc_particle_phi_ = std::make_unique<TH1D>(
+        (safe_label_ + "_mc_particle_phi").c_str(),
+        "MC particle phi;#phi [deg];particles",
+        180,
+        -180.0,
+        180.0);
+    mc_particle_phi_->Sumw2();
 }
 
-void DCHistos::fill(const hipo::bank &mc_true, hipo::bank &dc_tdc)
+void DCHistos::fill_mc_particles(const hipo::bank &mc_particle)
+{
+    for (int row = 0; row < mc_particle.getRows(); ++row) {
+        const double px = mc_particle.getFloat("px", row);
+        const double py = mc_particle.getFloat("py", row);
+        const double pz = mc_particle.getFloat("pz", row);
+        const double p = std::sqrt(px * px + py * py + pz * pz);
+        if (p <= 0.0) {
+            continue;
+        }
+
+        const double rad_to_deg = 180.0 / std::acos(-1.0);
+        const double theta = std::acos(std::clamp(pz / p, -1.0, 1.0)) * rad_to_deg;
+        const double phi = std::atan2(py, px) * rad_to_deg;
+        mc_particle_momentum_->Fill(p);
+        mc_particle_theta_->Fill(theta);
+        mc_particle_phi_->Fill(phi);
+    }
+}
+
+void DCHistos::fill(const hipo::bank &mc_true, hipo::bank &dc_tdc,
+                    const hipo::bank &mc_particle)
 {
     ++events_;
+    fill_mc_particles(mc_particle);
 
     const int ntrue = mc_true.getRows();
     const int ntdc = dc_tdc.getRows();
@@ -421,6 +467,9 @@ void DCHistos::write(TDirectory *directory) const
         }
     }
     layer_wire_->Write();
+    mc_particle_momentum_->Write();
+    mc_particle_theta_->Write();
+    mc_particle_phi_->Write();
     saved_dir->cd();
 }
 
@@ -440,14 +489,14 @@ void DCHistos::save_plots(const std::string &plot_dir) const
         occupancy_summary_[region]->SetMarkerSize(0.7);
         occupancy_summary_[region]->SetMaximum(
             std::max(max_bin_content_with_error(occupancy_summary_[region].get()) * 1.25, 1.0));
-        occupancy_summary_[region]->Draw("E1");
+        occupancy_summary_[region]->DrawCopy("E1");
         draw_pad_label(region_label + " occupancy");
 
         canvas->cd(kRegions + region + 1);
         gPad->SetGrid();
         gPad->SetTopMargin(0.10);
         gPad->SetRightMargin(0.15);
-        rz_vertex_[region]->Draw("colz");
+        rz_vertex_[region]->DrawCopy("colz");
         draw_pad_label(region_label + " r vs z");
 
         canvas->cd(2 * kRegions + region + 1);
@@ -461,7 +510,7 @@ void DCHistos::save_plots(const std::string &plot_dir) const
         z_vertex_[region]->SetMarkerSize(0.6);
         z_vertex_[region]->SetMaximum(
             std::max(max_bin_content_with_error(z_vertex_[region].get()) * 5.0, 1.0));
-        z_vertex_[region]->Draw("E1");
+        z_vertex_[region]->DrawCopy("E1");
         draw_pad_label(region_label + " z vertex");
     }
 
@@ -485,6 +534,12 @@ void DCHistos::save_plots(const std::string &plot_dir) const
 
     draw_2d(layer_wire_.get(), "DC layer-wire occupancy",
             plot_dir + "/" + safe_label_ + "_dc_layer_wire_occupancy.png");
+    draw_overlay({mc_particle_momentum_.get()}, {label_}, "MC particle momentum",
+                 plot_dir + "/" + safe_label_ + "_mc_particle_momentum.png");
+    draw_overlay({mc_particle_theta_.get()}, {label_}, "MC particle theta",
+                 plot_dir + "/" + safe_label_ + "_mc_particle_theta.png");
+    draw_overlay({mc_particle_phi_.get()}, {label_}, "MC particle phi",
+                 plot_dir + "/" + safe_label_ + "_mc_particle_phi.png");
 }
 
 std::vector<TH1 *> DCHistos::comparison_histos() const
@@ -496,6 +551,9 @@ std::vector<TH1 *> DCHistos::comparison_histos() const
         occupancy_summary_[0].get(),
         occupancy_summary_[1].get(),
         occupancy_summary_[2].get(),
+        mc_particle_momentum_.get(),
+        mc_particle_theta_.get(),
+        mc_particle_phi_.get(),
     };
 }
 
@@ -516,6 +574,9 @@ std::vector<std::string> DCHistos::comparison_names() const
         "dc_r1_occupancy_summary",
         "dc_r2_occupancy_summary",
         "dc_r3_occupancy_summary",
+        "mc_particle_momentum",
+        "mc_particle_theta",
+        "mc_particle_phi",
     };
 }
 
@@ -524,7 +585,8 @@ double DCHistos::comparison_plot_scale(const std::string &name, bool normalize) 
     if (events_ <= 0) {
         return 1.0;
     }
-    if (normalize && name.find("z_vertex") != std::string::npos) {
+    const bool is_mc_particle = name.find("mc_particle_") != std::string::npos;
+    if (normalize && (name.find("z_vertex") != std::string::npos || is_mc_particle)) {
         return 1.0 / static_cast<double>(events_);
     }
     if (normalized_ || name.find("occupancy_summary") == std::string::npos) {
@@ -560,7 +622,8 @@ std::vector<std::string> DCHistos::diagnostic_names() const
 double DCHistos::diagnostic_scale(const std::string &name, bool normalize) const
 {
     const bool normalizable = name.find("z_vertex") != std::string::npos ||
-                              name.find("_tdc") != std::string::npos;
+                              name.find("_tdc") != std::string::npos ||
+                              name.find("mc_particle_") != std::string::npos;
     if (!normalize || events_ <= 0 || !normalizable) {
         return 1.0;
     }
@@ -607,13 +670,14 @@ void DCSubsystem::process_file(const RunOptions &options, const InputSpec &input
     hipo::dictionary factory;
     reader.readDictionary(factory);
 
-    for (const char *bank_name : {"MC::True", "DC::tdc"}) {
+    for (const char *bank_name : {"MC::True", "MC::Particle", "DC::tdc"}) {
         if (!factory.hasSchema(bank_name)) {
             throw std::runtime_error("Input file '" + input.path + "' does not contain bank " + bank_name);
         }
     }
 
     hipo::bank mc_true(factory.getSchema("MC::True"));
+    hipo::bank mc_particle(factory.getSchema("MC::Particle"));
     hipo::bank dc_tdc(factory.getSchema("DC::tdc"));
     hipo::event event;
 
@@ -621,8 +685,9 @@ void DCSubsystem::process_file(const RunOptions &options, const InputSpec &input
     while (reader.next() && (options.max_events < 0 || event_counter < options.max_events)) {
         reader.read(event);
         event.getStructure(mc_true);
+        event.getStructure(mc_particle);
         event.getStructure(dc_tdc);
-        dc_histos->fill(mc_true, dc_tdc);
+        dc_histos->fill(mc_true, dc_tdc, mc_particle);
         ++event_counter;
 
         if (options.print_interval > 0 && event_counter % options.print_interval == 0) {

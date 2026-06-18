@@ -9,11 +9,17 @@ Current subsystem support:
 - `dc`: reads `MC::True` and `DC::tdc`; writes a 3x3 summary PNG with occupancy, r-vs-z, and z-vertex rows
   across region columns R1, R2, and R3. It also writes the ROOT histograms, a TDC PNG with sector columns and
   region rows, a layer-wire occupancy map, and a comparison TDC PNG when comparing two files.
+- `ec`: reads `ECAL::adc` and `ECAL::tdc`. The EC system has hipo layers 4..9 (EC inner U/V/W = 4/5/6, EC
+  outer U/V/W = 7/8/9), each with 36 components. It writes a 6x6 ADC matrix PNG and a 6x6 TDC matrix PNG for
+  the first EC layer (hipo layer 4, one pad per component), plus a component-vs-layer occupancy PNG with one
+  pad per sector. It also writes the ROOT histograms and, when comparing two files, 6x6 ADC/TDC comparison
+  grids and per-sector occupancy comparison maps.
 
 Example:
 
 ```shell
 hipo-histos dc input.hipo --label input -o dc_histos.root --plot-dir dc_plots
+hipo-histos ec input.hipo --label input -o ec_histos.root --plot-dir ec_plots
 ```
 
 Comparison example:

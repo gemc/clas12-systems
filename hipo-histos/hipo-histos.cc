@@ -24,7 +24,7 @@ void help()
         << "       hipo-histos [options] --compare-system <subsystem> <file1.hipo> <file2.hipo>\n"
         << "\n"
         << "Options:\n"
-        << "  --subsystem NAME       Subsystem to analyze. Currently supported: dc.\n"
+        << "  --subsystem NAME       Subsystem to analyze. Currently supported: dc, ec.\n"
         << "  --compare-system NAME  Compare this subsystem using exactly two HIPO files.\n"
         << "  -o, --output FILE      ROOT output file. Default: hipo-histos.root.\n"
         << "  --plot-dir DIR         Directory for plots. Default: hipo-histos-plots.\n"

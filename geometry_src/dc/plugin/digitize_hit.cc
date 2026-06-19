@@ -25,6 +25,13 @@ G4ThreeVector dc_wire_position(int layer, int wire, double dlayer, double dwire)
                          dlayer * static_cast<double>(layer));
 }
 
+bool valid_dc_identity(int sector, int superlayer, int layer, int wire) {
+    return sector >= 1 && sector <= 6 &&
+           superlayer >= 1 && superlayer <= 6 &&
+           layer >= 1 && layer <= DCConstants::NLAYERS &&
+           wire >= 1 && wire <= DCConstants::NWIRES;
+}
+
 } // namespace
 
 
@@ -96,6 +103,8 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
 
     // Identity (1-based)
     const auto& gid        = ghit->getGID();
+    if (gid.size() < 4 || ghit->nsteps() == 0) return nullptr;
+
     const int   sector     = gid[0].getValue();
     const int   superlayer = gid[1].getValue();
     const int   layer      = gid[2].getValue();
@@ -104,11 +113,12 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
     const int   SLI        = superlayer - 1;
     const int   LAYI       = layer      - 1;
 
-    if (layer < 1 || layer > DCConstants::NLAYERS || nwire < 1 || nwire > DCConstants::NWIRES)
-        return nullptr;
+    if (!valid_dc_identity(sector, superlayer, layer, nwire)) return nullptr;
 
     // Detector shape parameters from the G4Trap volume
     const auto&  dims        = ghit->getDetectorDimensions();
+    if (dims.size() <= 5) return nullptr;
+
     const double zlength     = dims[0]; // half-thickness along the wire-depth axis
     const double ylength     = dims[3]; // semi-height along the wire-number axis
     const double xlength_low = dims[4]; // half-base at -ylength
@@ -133,6 +143,10 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
     const auto   mom    = ghit->getMomenta();
     const auto   trackE = ghit->getTrackEs();
     const size_t nsteps = ghit->nsteps();
+
+    if (tids.size() < nsteps || times.size() < nsteps || edeps.size() < nsteps ||
+        Lpos.size() < nsteps || mom.size() < nsteps || trackE.size() < nsteps)
+        return nullptr;
 
     // TDC jitter (same for every step in this hit)
     double tdc_jitter = 0.0;

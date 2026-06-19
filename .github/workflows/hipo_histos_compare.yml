@@ -27,14 +27,14 @@ concurrency:
 on:
   pull_request:
     paths:
-      - "geometry_src/dc/**"
+      - "geometry_src/**"
       - "plugins/hipo/**"
       - "hipo-histos/**"
       - ".github/workflows/hipo_histos_compare.yml"
   push:
     branches: [ main ]
     paths:
-      - "geometry_src/dc/**"
+      - "geometry_src/**"
       - "plugins/hipo/**"
       - "hipo-histos/**"
       - ".github/workflows/hipo_histos_compare.yml"
@@ -52,6 +52,8 @@ jobs:
         include:
           - system: dc
             n_events: 10000
+          - system: ec
+            n_events: 1000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6

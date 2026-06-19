@@ -10,6 +10,7 @@ verbosity:
 gsystem:
   - name: ec
     factory: sqlite
+    digitization: ecal
 
 gstreamer:
   - format: csv

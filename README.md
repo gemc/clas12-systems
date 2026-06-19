@@ -44,9 +44,10 @@ API:
 
 This repository is under active migration from [`gemc/clas12Tags`](https://github.com/gemc/clas12Tags). The first GEMC3 system in the registry is:
 
-| System | Status              | Notes                            | 
-|--------|---------------------|----------------------------------|
-| `dc`   | geometry and plugin | Uses coatjava as geometry source |
+| System  | Status              | Notes                                             |
+|---------|---------------------|---------------------------------------------------|
+| `dc`    | geometry and plugin | Uses coatjava as geometry source                  |
+| `field` | plugin              | CLAS12 mapped magnetic field via the cMag library |
 
 
 <br/>
@@ -259,6 +260,32 @@ System plugins use a registry pattern:
 
 This keeps plugin installation consistent across CLAS12 systems and avoids each detector inventing its own build
 logic.
+
+<br/>
+
+## Magnetic Field
+
+CLAS12 uses a **mapped** magnetic field — the measured solenoid and torus field maps — rather than an analytic
+model. The field is provided by the `gfieldclas12bin` plugin under `plugins/field/`, which reads the CLAS12
+solenoid and torus binary maps through David Heddle's [cMag](https://github.com/JeffersonLab/clas12-cmag)
+library (the `clas12-cmag` subproject) and returns the composite field at each step point.
+
+The field is configured with the core GEMC generic `gfields` node, selecting this plugin with `type: clas12bin`:
+
+```yaml
+gfields:
+  - name: clas12
+    type: clas12bin
+    solenoid: Symm_solenoid_r601_phi1_z1201_13June2018
+    torus: Symm_torus_r2501_phi16_z251_24Apr2018
+```
+
+Any additional scalar keys (map scales, displacements, overall origin/rotation, `interpolation`) are forwarded
+verbatim to the plugin.
+
+Field maps are downloaded to `<prefix>/fields` during `meson install` (see `meson/install_fields.py`) and the
+plugin reads them from the `fields` directory installed next to it (`<plugin_dir>/../fields`). No `FIELD` or
+`FIELD_DIR` environment variable is needed at runtime; an explicit `dir` parameter can override the location.
 
 <br/>
 

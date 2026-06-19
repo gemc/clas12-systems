@@ -22,10 +22,17 @@ zlib_dep = dependency('zlib', static : false, required : true)
 # "no LC_RPATH's found" at load. This mirrors gemc's own self-contained gstreamer plugins.
 clhep_deps = dependency('clhep', version : '>=2.4.7.1', static : true, include_type : 'system')
 
-geant4_core_dep = dependency('geant4_core', version : '>=11.3.2', method : 'pkg-config', static : true, include_type : 'system')
+geant4_core_dep = dependency(
+    'geant4_core',
+    version      : '>=11.3.2',
+    method       : 'pkg-config',
+    static       : true,
+    include_type : 'system',
+)
 geant4_core_deps = [geant4_core_dep]
 
 gemc_dep = dependency('gemc', required : false, include_type : 'system')
+gemc_prefix = ''
 
 if not gemc_dep.found()
     # pkg-config didn't find gemc — try deriving the prefix from the installed binary.
@@ -38,6 +45,7 @@ if not gemc_dep.found()
             check : false,
         ).stdout().strip()
         if _gemc_prefix != ''
+            gemc_prefix = _gemc_prefix
             message('gemc: pkg-config not found; falling back to binary prefix ' + _gemc_prefix)
             # Parse Libs: directly from gemc.pc — pkg-config --libs fails when
             # Requires packages (clhep, Qt6, geant4) are not all in PKG_CONFIG_PATH.
@@ -71,18 +79,34 @@ if not gemc_dep.found()
 endif
 
 if not gemc_dep.found()
-    if get_option('gemc').enabled()
-        error('GEMC is required (gemc=enabled) but was not found via pkg-config or PATH.')
-    else
-        message('GEMC dependency was not found; configure can continue until plugin targets require GEMC headers or libraries.')
-    endif
+    error('GEMC is required but was not found via pkg-config or PATH; install GEMC before configuring.')
 elif gemc_dep.type_name() == 'pkgconfig'
+    gemc_prefix = gemc_dep.get_variable(pkgconfig : 'prefix')
     # Belt-and-suspenders for older installations where .pc Cflags had -I${includedir}/gemc.
     # Adding the parent dir ensures "gemc/module/header.h" style includes always resolve.
     gemc_dep = declare_dependency(
         dependencies        : [gemc_dep],
         include_directories : [include_directories(gemc_dep.get_variable(pkgconfig : 'includedir'))],
     )
+endif
+
+if gemc_prefix != ''
+    gemc_geant4_core_pc = gemc_prefix / 'lib' / 'pkgconfig' / 'geant4_core.pc'
+    if fs.is_file(gemc_geant4_core_pc)
+        gemc_geant4_core_version = run_command(
+            'sh', '-c',
+            'awk -F: "/^Version:/ {gsub(/^[ \t]+|[ \t]+$/, \"\", \\$2); print \\$2; exit}" "$1"',
+            '_', gemc_geant4_core_pc,
+            check : true,
+        ).stdout().strip()
+        if gemc_geant4_core_version != '' and geant4_core_dep.version() != gemc_geant4_core_version
+            error(
+                'GEMC was built with Geant4 ' + gemc_geant4_core_version +
+                ', but Meson found geant4_core ' + geant4_core_dep.version() +
+                '. Load matching GEMC/Geant4 modules and reconfigure from a clean build directory.',
+            )
+        endif
+    endif
 endif
 
 if sys == 'darwin'
@@ -119,4 +143,3 @@ hipo_cpp_sp = subproject(
 hipo_cpp_dep = hipo_cpp_sp.get_variable('hipo_dep').as_system()
 
 clas12_cmag_dep = dependency('clas12-cmag', include_type : 'system', default_options : ['warning_level=0'])
-

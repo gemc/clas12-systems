@@ -23,15 +23,22 @@ public final class CoatjavaFactory {
     private static Object createFactory(Options options) throws Exception {
         return switch (options.system) {
             case "dc" -> createDcFactory(options);
-            case "ec" -> createConstantProviderFactory(
+            case "ec" -> createTableProviderFactory(
                 "org.jlab.detector.geant4.v2.ECGeant4Factory",
-                "ECAL",
-                options
+                options,
+                "/geometry/ec/ec",
+                "/geometry/ec/uview",
+                "/geometry/ec/vview",
+                "/geometry/ec/wview",
+                "/geometry/ec/alignment"
             );
-            case "pcal" -> createConstantProviderFactory(
+            case "pcal" -> createTableProviderFactory(
                 "org.jlab.detector.geant4.v2.PCALGeant4Factory",
-                "ECAL",
-                options
+                options,
+                "/geometry/pcal/pcal",
+                "/geometry/pcal/Uview",
+                "/geometry/pcal/Wview",
+                "/geometry/pcal/alignment"
             );
             case "ftof" -> createConstantProviderFactory(
                 "org.jlab.detector.geant4.v2.FTOFGeant4Factory",
@@ -89,6 +96,16 @@ public final class CoatjavaFactory {
         return Class.forName(className).getConstructor(cpClass).newInstance(cp);
     }
 
+    private static Object createTableProviderFactory(
+        String className,
+        Options options,
+        String... tables
+    ) throws Exception {
+        Object cp = constants(options.runNumber, options.variation, tables);
+        Class<?> cpClass = Class.forName("org.jlab.geom.base.ConstantProvider");
+        return Class.forName(className).getConstructor(cpClass).newInstance(cp);
+    }
+
     private static Object createRunVariationFactory(String className, Options options) throws Exception {
         return Class.forName(className)
             .getConstructor(int.class, String.class)
@@ -127,6 +144,18 @@ public final class CoatjavaFactory {
         return Class.forName("org.jlab.detector.base.GeometryFactory")
             .getMethod("getConstants", detectorTypeClass, int.class, String.class)
             .invoke(null, detector, runNumber, variation);
+    }
+
+    private static Object constants(int runNumber, String variation, String... tables) throws Exception {
+        Object provider = Class.forName("org.jlab.detector.calib.utils.DatabaseConstantProvider")
+            .getConstructor(int.class, String.class)
+            .newInstance(runNumber, variation);
+        Method loadTable = provider.getClass().getMethod("loadTable", String.class);
+        for (String table : tables) {
+            loadTable.invoke(provider, table);
+        }
+        provider.getClass().getMethod("disconnect").invoke(provider);
+        return provider;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

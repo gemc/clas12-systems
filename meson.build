@@ -26,6 +26,12 @@ test_env.set('PYTHONDONTWRITEBYTECODE', '1')
 test_env.prepend('PYTHONPATH', meson.project_source_root() / 'geometry_src')
 
 fs = import('fs')
+javac = find_program(
+    '/opt/homebrew/opt/java/bin/javac',
+    '/usr/local/opt/java/bin/javac',
+    'javac',
+    required : true,
+)
 
 # ---------------------------------------------------------------------------
 # C++ plugin build infrastructure
@@ -68,6 +74,25 @@ if not fs.is_dir(coatjava_dir)
     )
 endif
 
+coatjava_classpath = ':'.join([
+    coatjava_dir / 'lib' / 'clas' / '*',
+    coatjava_dir / 'lib' / 'services' / '*',
+    coatjava_dir / 'lib' / 'utils' / '*',
+])
+
+coatjava_factory_classes = custom_target(
+    'coatjava_factory_classes',
+    input   : 'geometry_src/coatjava_factories/CoatjavaFactory.java',
+    output  : ['CoatjavaFactory.class', 'CoatjavaFactory$Options.class'],
+    command : [
+        javac,
+        '-cp', coatjava_classpath,
+        '-d', '@OUTDIR@',
+        '@INPUT@',
+    ],
+)
+test_env.set('COATJAVA_FACTORY_CLASSES', meson.current_build_dir())
+
 # Python / geometry infrastructure (pygemc)
 pygemc_sub = subproject('pygemc')
 venv_bin   = pygemc_sub.get_variable('venv_bin')
@@ -99,6 +124,7 @@ sql_db = meson.project_build_root() / 'clas12.db'
 # ---------------------------------------------------------------------------
 clas12_systems = [
     'dc',
+    'ec',
 ]
 
 foreach sys : clas12_systems
@@ -115,6 +141,7 @@ foreach sys : clas12_systems
             workdir     : meson.project_source_root() / geo_dir,
             is_parallel : false,
             env         : test_env,
+            depends     : coatjava_factory_classes,
             priority    : 10,
             suite       : 'clas12',
         )
@@ -129,6 +156,7 @@ endforeach
 # Output plugins (format-specific gstreamer plugins, not detector-geometry code)
 # ---------------------------------------------------------------------------
 subdir('plugins/hipo')
+subdir('plugins/field')
 subdir('hipo-histos')
 
 # ---------------------------------------------------------------------------
@@ -149,6 +177,19 @@ foreach plugin : clas12_plugins
     )
     clas12_plugin_targets += plugin_target
 endforeach
+
+# ---------------------------------------------------------------------------
+# CLAS12 magnetic field maps
+#
+# Download the binary/ascii field maps to <prefix>/fields during `meson install` (skips files
+# that already exist). The clas12bin field plugin reads them from the "fields" directory installed
+# next to it (<plugin_dir>/../fields), so no FIELD_DIR environment variable is needed at runtime.
+# ---------------------------------------------------------------------------
+meson.add_install_script(
+    python_exe,
+    meson.project_source_root() / 'meson' / 'install_fields.py',
+    install_tag : 'fields',
+)
 
 # ---------------------------------------------------------------------------
 # pkg-config file — exposes plugindir so CI can auto-discover installed plugins

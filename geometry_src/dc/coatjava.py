@@ -81,6 +81,18 @@ def java_command():
     raise RuntimeError("Java is required to run coatjava geometry factories, but no usable JDK was found.")
 
 
+def compiled_factory_dir(detector_dir):
+    """Return a compiled CoatjavaFactory class directory when one is available."""
+    if compiled_factory := os.environ.get("COATJAVA_FACTORY_CLASSES"):
+        return compiled_factory
+
+    default_build_dir = Path(detector_dir).parent.parent / "build"
+    if (default_build_dir / "CoatjavaFactory.class").is_file():
+        return str(default_build_dir)
+
+    return None
+
+
 def run_factory(dc_dir, variation, run_number):
     """Run the local coatjava factory and return the generated volume table path."""
     dc_path = Path(dc_dir)
@@ -94,19 +106,14 @@ def run_factory(dc_dir, variation, run_number):
             str(coatjava_dir / "lib" / "utils" / "*"),
         ]
     )
-    command = [
-        java_command(),
-        "-cp",
-        classpath,
-        str(dc_path.parent / "coatjava_factories" / "CoatjavaFactory.java"),
-        "--system",
-        "dc",
-        "--variation",
-        variation,
-        "--runnumber",
-        str(run_number),
-    ]
-    # CoatjavaFactory.java is launched in source-file mode; it writes output in dc_path.
+    compiled_factory = compiled_factory_dir(dc_path)
+    if compiled_factory:
+        command = [java_command(), "-cp", classpath + os.pathsep + compiled_factory, "CoatjavaFactory"]
+    else:
+        factory_source = str(dc_path.parent / "coatjava_factories" / "CoatjavaFactory.java")
+        command = [java_command(), "-cp", classpath, factory_source]
+
+    command.extend(["--system", "dc", "--variation", variation, "--runnumber", str(run_number)])
     subprocess.run(command, cwd=dc_path, check=True)
     return output
 

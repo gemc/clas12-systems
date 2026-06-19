@@ -84,6 +84,7 @@ coatjava_factory_classes = custom_target(
     'coatjava_factory_classes',
     input   : 'geometry_src/coatjava_factories/CoatjavaFactory.java',
     output  : ['CoatjavaFactory.class', 'CoatjavaFactory$Options.class'],
+    build_by_default : true,
     command : [
         javac,
         '-cp', coatjava_classpath,

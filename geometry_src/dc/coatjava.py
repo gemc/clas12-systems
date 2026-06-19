@@ -84,7 +84,8 @@ def java_command():
 def compiled_factory_dir(detector_dir):
     """Return a compiled CoatjavaFactory class directory when one is available."""
     if compiled_factory := os.environ.get("COATJAVA_FACTORY_CLASSES"):
-        return compiled_factory
+        if (Path(compiled_factory) / "CoatjavaFactory.class").is_file():
+            return compiled_factory
 
     default_build_dir = Path(detector_dir).parent.parent / "build"
     if (default_build_dir / "CoatjavaFactory.class").is_file():

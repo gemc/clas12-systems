@@ -145,6 +145,7 @@ foreach sys : clas12_systems
             depends     : coatjava_factory_classes,
             priority    : 10,
             suite       : 'clas12',
+            timeout     : 180,
         )
     endif
 

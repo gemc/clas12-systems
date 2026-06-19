@@ -1,0 +1,29 @@
+CLAS12 GEMC Systems
+Copyright 2006-2026 Maurizio Ungaro and Thomas Jefferson National Accelerator
+Facility (Jefferson Lab).
+
+This product includes the GEMC software developed by Maurizio Ungaro at
+Thomas Jefferson National Accelerator Facility (Jefferson Lab).
+
+This software includes voluntary contributions made to the GEMC project.
+
+------------------------------------------------------------------------------
+Third-party components
+------------------------------------------------------------------------------
+This repository provides CLAS12 detector geometry, digitization, and plugins
+built on GEMC. It is distributed with, or requires, third-party components that
+are separately licensed; you must comply with their licenses in addition to the
+Apache License, Version 2.0 that covers this repository. These include:
+
+  - GEMC and its simulation stack: Geant4, CLHEP, Qt, ROOT, SQLite, Assimp
+  - CLAS12 software: ccdb (Calibration Constants Database), clas12-cmag
+    (CLAS12 magnetic field), and the HIPO I/O library (hipo-cpp)
+
+------------------------------------------------------------------------------
+Citation
+------------------------------------------------------------------------------
+If you use GEMC in scientific work, please cite (see CITATION.cff):
+
+  M. Ungaro, "Geant4 Monte-Carlo (GEMC) A database-driven simulation program,"
+  EPJ Web of Conferences 295, 05005 (2024).
+  https://doi.org/10.1051/epjconf/202429505005

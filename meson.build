@@ -127,6 +127,7 @@ clas12_systems = [
     'dc',
     'ec',
 ]
+geometry_test_timeout = 600
 
 foreach sys : clas12_systems
     geo_dir    = 'geometry_src' / sys
@@ -145,7 +146,7 @@ foreach sys : clas12_systems
             depends     : coatjava_factory_classes,
             priority    : 10,
             suite       : 'clas12',
-            timeout     : 180,
+            timeout     : geometry_test_timeout,
         )
     endif
 

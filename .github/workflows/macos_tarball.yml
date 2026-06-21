@@ -1,0 +1,218 @@
+# Build and test CLAS12 systems natively on macOS (Apple Silicon) against the
+# prebuilt GEMC binary tarball.
+#
+# macOS has no Docker base image, so unlike the Linux Test/Binary Tarballs
+# pipeline this does NOT pull a ghcr.io/gemc/src image. Instead it consumes the
+# relocatable GEMC macOS tarball produced by gemc/src's "macOS GEMC Binary
+# Tarball" (macos_tarball) workflow: it unpacks that tarball, downloads the
+# Geant4 physics data it ships, then compiles and tests the CLAS12 systems
+# (plugins + geometry) exactly as the Linux container does. The resulting
+# install tree is repackaged into a second relocatable tarball that is attached
+# to this repository's rolling "dev" prerelease.
+name: macOS CLAS12 Systems Tarball
+
+run-name: macOS CLAS12 systems tarball
+
+permissions:
+  contents: write
+
+concurrency:
+  group: clas12-systems-macos-tarball-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  # Run after gemc/src's macOS GEMC tarball (0 5 * * *) has been attached to its
+  # dev release and after this repo's nightly dev release (44 1 * * *) has
+  # anchored the "dev" prerelease this job uploads to.
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      gemc_tarball_repo:
+        description: 'Repository hosting the GEMC macOS tarball release'
+        required: false
+        default: 'gemc/src'
+      gemc_tarball_tag:
+        description: 'Release tag holding the GEMC macOS tarball'
+        required: false
+        default: 'dev'
+
+jobs:
+  build-tarball:
+    name: clas12-systems macos arm64
+    # macos-26 (Tahoe) is the latest macOS image; GitHub's macOS runners are
+    # Apple Silicon (arm64). The package is tagged with this build host's
+    # OSRELEASE, matching the GEMC tarball it links against.
+    runs-on: macos-26
+    env:
+      TAG_NAME: dev
+      GEMC_TARBALL_REPO: ${{ github.event.inputs.gemc_tarball_repo || 'gemc/src' }}
+      GEMC_TARBALL_TAG: ${{ github.event.inputs.gemc_tarball_tag || 'dev' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Full history so ci/clas12_plugins_version.sh / git describe behave
+          # like the other build jobs, and so git-lfs/coatjava can resolve.
+          fetch-depth: 0
+
+      - name: Install build dependencies (Homebrew)
+        env:
+          # GitHub macOS runners pre-tap aws/azure/hashicorp; newer Homebrew
+          # refuses untrusted taps and aborts. We use none of those taps, so
+          # skip the trust check and the auto-update tap scan.
+          HOMEBREW_NO_REQUIRE_TAP_TRUST: "1"
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          # meson/ninja/cmake + pkg-config drive the build; qt/root and
+          # zlib/lz4/fmt/zstd/openssl are the libraries the plugins and the
+          # ccdb/hipo-cpp subprojects link against. XQuartz provides the X11/GL
+          # runtime the GEMC tarball was built against.
+          brew install meson ninja cmake pkg-config qt root zlib lz4 fmt zstd openssl
+          # coatjava toolchain: Java, Maven, git-lfs (geometry LFS assets) and jq.
+          brew install openjdk maven git-lfs jq
+          brew install --cask xquartz
+
+      - name: Download the GEMC macOS tarball
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="${RUNNER_TEMP}/gemc-download"
+          mkdir -p "${dest}"
+          gh release download "${GEMC_TARBALL_TAG}" \
+            --repo "${GEMC_TARBALL_REPO}" \
+            --pattern 'gemc-*-macosx*-arm64.tar.gz' \
+            --dir "${dest}"
+          tarball="$(ls "${dest}"/gemc-*-macosx*-arm64.tar.gz | head -1)"
+          echo "GEMC_TARBALL=${tarball}" >> "$GITHUB_ENV"
+          ls -l "${dest}"
+
+      - name: Unpack GEMC and install Geant4 data
+        shell: bash
+        run: |
+          set -euo pipefail
+          gemc_home="${RUNNER_TEMP}/gemc"
+          mkdir -p "${gemc_home}"
+          tar -xzf "${GEMC_TARBALL}" -C "${gemc_home}" --strip-components=1
+          # Download the Geant4 physics data into the tarball's geant4-data dir
+          # (gemc.env points the G4*DATA variables there).
+          "${gemc_home}/install_geant4_data.sh"
+          echo "GEMC_HOME=${gemc_home}" >> "$GITHUB_ENV"
+
+      - name: Set up coatjava
+        shell: bash
+        env:
+          # Homebrew's openjdk is keg-only; expose it so java/javac/maven resolve
+          # and ci/install_coatjava_deps.sh short-circuits (no apt/dnf on macOS).
+          JAVA_HOME_OVERRIDE: "1"
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$(brew --prefix openjdk)"
+          export PATH="${JAVA_HOME}/bin:$(brew --prefix git-lfs)/bin:${PATH}"
+          ./ci/setup_coatjava.sh
+
+      - name: Build, test and package CLAS12 systems
+        id: build
+        shell: zsh {0}
+        run: |
+          set -e
+
+          # --- Activate the relocated GEMC + Geant4 stack -------------------
+          # gemc.env exports GEMC_HOME, prepends bin to PATH (so the binary-prefix
+          # fallback in meson/meson.build finds gemc) and sets the G4*DATA vars.
+          export GEMC_HOME="${GEMC_HOME}"
+          source "${GEMC_HOME}/gemc.env"
+
+          # --- Compose the build environment --------------------------------
+          # GEMC's, Geant4's and CLHEP's .pc files live in the tarball's
+          # lib/pkgconfig; the plugins resolve gemc/geant4_core/clhep from there.
+          # Homebrew's qt/zlib are keg-only, so add their .pc dirs too.
+          export PKG_CONFIG_PATH="${GEMC_HOME}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          for f in qt zlib; do
+            export PKG_CONFIG_PATH="$(brew --prefix ${f})/lib/pkgconfig:${PKG_CONFIG_PATH}"
+          done
+          export PATH="$(brew --prefix qt)/bin:${PATH}"
+
+          # coatjava toolchain.
+          export JAVA_HOME="$(brew --prefix openjdk)"
+          export PATH="${JAVA_HOME}/bin:$(brew --prefix git-lfs)/bin:${PATH}"
+
+          # ROOT: thisroot.sh exports ROOTSYS/PATH and the dyld search path so
+          # rootcling/root-config are found and the hipo-cpp ROOT tools link.
+          source "$(brew --prefix root)/bin/thisroot.sh"
+
+          echo " > gemc        : $(command -v gemc) ($(gemc -v 2>/dev/null | head -1))"
+          echo " > geant4-config: $(command -v geant4-config) ($(geant4-config --version))"
+          echo " > root-config : $(command -v root-config) ($(root-config --version))"
+          echo " > javac       : $(command -v javac)"
+
+          # --- Resolve the package version tag ------------------------------
+          # Mirror gemc/src's osrelease: macosx<major>-clang<major>-<arch>, and
+          # tag the package with the Geant4 the GEMC tarball was built against.
+          g4ver="$(geant4-config --version)"
+          mac_major="$(sw_vers -productVersion | cut -d. -f1)"
+          clang_major="$(clang --version | sed -nE 's/.*clang version ([0-9]+).*/\1/p' | head -1)"
+          osrelease="macosx${mac_major}-clang${clang_major}-arm64"
+          c12s_ver="$(ci/clas12_plugins_version.sh)"
+          echo "CLAS12 systems version: ${c12s_ver}"
+          echo "Geant4 version:         ${g4ver}"
+          echo "OSRELEASE:              ${osrelease}"
+
+          # --- Compile + install + test -------------------------------------
+          jobs=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+          jobs=$(( jobs < 16 ? jobs : 16 ))
+          install_prefix="${PWD}/install"
+
+          meson setup build --wipe --prefix="${install_prefix}" -Dbuildtype=release
+          meson compile -C build -j "${jobs}"
+          meson install -C build
+          meson test -C build --suite clas12 --print-errorlogs --no-rebuild \
+            --num-processes 1 -v
+
+          # --- Repackage the install tree into a relocatable tarball ---------
+          package_name="clas12-systems-${c12s_ver}-geant4-${g4ver}-${osrelease}"
+          dist="${PWD}/dist"
+          stage="$(mktemp -d)"
+          mkdir -p "${dist}"
+          cp -a "${install_prefix}" "${stage}/${package_name}"
+          tar -C "${stage}" -czf "${dist}/${package_name}.tar.gz" "${package_name}"
+          rm -rf "${stage}"
+
+          echo "package_name=${package_name}" >> "$GITHUB_OUTPUT"
+          echo "tarball=dist/${package_name}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect the CLAS12 systems tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball="${{ steps.build.outputs.tarball }}"
+          work="$(mktemp -d)"
+          tar -xzf "${tarball}" -C "${work}" --strip-components=1
+          # Structural check: at least one installed GEMC plugin is present.
+          ls -R "${work}/lib" | head -40
+          find "${work}" -name '*.gplugin' -o -name '*.dylib' | head -20
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: clas12-systems-tarball-${{ steps.build.outputs.package_name }}
+          path: ${{ steps.build.outputs.tarball }}
+          if-no-files-found: error
+
+      - name: Attach tarball to dev release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball="${{ steps.build.outputs.tarball }}"
+          gh release view "${TAG_NAME}" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "${TAG_NAME}" \
+              --repo "$REPO" \
+              --title "CLAS12 Systems Dev Nightly" \
+              --prerelease \
+              --notes "Dev nightly release."
+          gh release upload "${TAG_NAME}" --repo "$REPO" "${tarball}" --clobber

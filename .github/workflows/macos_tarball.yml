@@ -143,15 +143,18 @@ jobs:
           # rootcling/root-config are found and the hipo-cpp ROOT tools link.
           source "$(brew --prefix root)/bin/thisroot.sh"
 
+          # The GEMC tarball is statically linked against Geant4 and ships no
+          # geant4-config; the Geant4 version comes from its geant4_core.pc,
+          # resolved through the PKG_CONFIG_PATH set above.
+          g4ver="$(pkg-config --modversion geant4_core)"
           echo " > gemc        : $(command -v gemc) ($(gemc -v 2>/dev/null | head -1))"
-          echo " > geant4-config: $(command -v geant4-config) ($(geant4-config --version))"
+          echo " > geant4_core : ${g4ver} (from geant4_core.pc)"
           echo " > root-config : $(command -v root-config) ($(root-config --version))"
           echo " > javac       : $(command -v javac)"
 
           # --- Resolve the package version tag ------------------------------
           # Mirror gemc/src's osrelease: macosx<major>-clang<major>-<arch>, and
           # tag the package with the Geant4 the GEMC tarball was built against.
-          g4ver="$(geant4-config --version)"
           mac_major="$(sw_vers -productVersion | cut -d. -f1)"
           clang_major="$(clang --version | sed -nE 's/.*clang version ([0-9]+).*/\1/p' | head -1)"
           osrelease="macosx${mac_major}-clang${clang_major}-arm64"

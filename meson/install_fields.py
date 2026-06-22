@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Downloads CLAS12 magnetic field maps into $MESON_INSTALL_PREFIX/fields during `meson install`.
-# The clas12bin field plugin reads these maps from the "fields" directory installed next to it
+# The clas12-cmag field plugin reads these maps from the "fields" directory installed next to it
 # (see plugins/field/gfield_clas12bin.cc). Each file is skipped when it already exists (idempotent).
 # Download order: wget -> curl -> urllib (the server blocks the default Python-urllib UA).
 

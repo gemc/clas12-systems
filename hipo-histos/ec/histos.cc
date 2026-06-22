@@ -147,9 +147,20 @@ void ECHistos::book()
             kLayerMax + 0.5);
         occupancy_[sector]->Sumw2();
     }
+
+    xy_global_ = std::make_unique<TH2D>(
+        (safe_label_ + "_ec_xy_global").c_str(),
+        "EC hit y vs x (global);x [mm];y [mm];entries",
+        kXYBins,
+        -kXYRange,
+        kXYRange,
+        kXYBins,
+        -kXYRange,
+        kXYRange);
+    xy_global_->Sumw2();
 }
 
-void ECHistos::fill(const hipo::bank &ecal_adc, const hipo::bank &ecal_tdc)
+void ECHistos::fill(const hipo::bank &ecal_adc, const hipo::bank &ecal_tdc, const hipo::bank &mc_true)
 {
     ++events_;
 
@@ -176,6 +187,15 @@ void ECHistos::fill(const hipo::bank &ecal_adc, const hipo::bank &ecal_tdc)
         }
         tdc_[component - 1]->Fill(ecal_tdc.getInt("TDC", row));
     }
+
+    // Raw global hit position (y vs x) for ECAL true hits, unweighted, so the two-file comparison
+    // runs on raw bin entries.
+    for (int row = 0; row < mc_true.getRows(); ++row) {
+        if (mc_true.getInt("detector", row) != kEcalDetectorId) {
+            continue;
+        }
+        xy_global_->Fill(mc_true.getDouble("avgX", row), mc_true.getDouble("avgY", row));
+    }
 }
 
 void ECHistos::finalize()
@@ -200,6 +220,7 @@ void ECHistos::write(TDirectory *directory) const
     for (int sector = 0; sector < kSectors; ++sector) {
         occupancy_[sector]->Write();
     }
+    xy_global_->Write();
     saved_dir->cd();
 }
 
@@ -241,6 +262,9 @@ void ECHistos::save_plots(const std::string &plot_dir) const
     }
     occupancy_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ec_occupancy").c_str());
     show_canvas(occupancy_canvas);
+
+    draw_2d(xy_global_.get(), label_ + " EC hit y vs x (global)",
+            plot_file(plot_dir, safe_label_ + "_ec_xy_global"));
 }
 
 std::vector<TH1 *> ECHistos::comparison_histos() const
@@ -261,6 +285,7 @@ std::vector<TH2 *> ECHistos::comparison_2d_histos() const
     for (int sector = 0; sector < kSectors; ++sector) {
         histos.push_back(occupancy_[sector].get());
     }
+    histos.push_back(xy_global_.get());
     return histos;
 }
 
@@ -270,6 +295,7 @@ std::vector<std::string> ECHistos::comparison_2d_names() const
     for (int sector = 0; sector < kSectors; ++sector) {
         names.push_back("ec_s" + std::to_string(sector + 1) + "_occupancy");
     }
+    names.push_back("ec_xy_global");
     return names;
 }
 
@@ -345,7 +371,7 @@ void ECSubsystem::process_file(const RunOptions &options, const InputSpec &input
     hipo::dictionary factory;
     reader.readDictionary(factory);
 
-    for (const char *bank_name : {"ECAL::adc", "ECAL::tdc"}) {
+    for (const char *bank_name : {"ECAL::adc", "ECAL::tdc", "MC::True"}) {
         if (!factory.hasSchema(bank_name)) {
             throw std::runtime_error("Input file '" + input.path + "' does not contain bank " + bank_name);
         }
@@ -353,6 +379,7 @@ void ECSubsystem::process_file(const RunOptions &options, const InputSpec &input
 
     hipo::bank ecal_adc(factory.getSchema("ECAL::adc"));
     hipo::bank ecal_tdc(factory.getSchema("ECAL::tdc"));
+    hipo::bank mc_true(factory.getSchema("MC::True"));
     hipo::event event;
 
     long event_counter = 0;
@@ -360,7 +387,8 @@ void ECSubsystem::process_file(const RunOptions &options, const InputSpec &input
         reader.read(event);
         event.getStructure(ecal_adc);
         event.getStructure(ecal_tdc);
-        ec_histos->fill(ecal_adc, ecal_tdc);
+        event.getStructure(mc_true);
+        ec_histos->fill(ecal_adc, ecal_tdc, mc_true);
         ++event_counter;
 
         if (options.print_interval > 0 && event_counter % options.print_interval == 0) {

@@ -266,21 +266,32 @@ logic.
 ## Magnetic Field
 
 CLAS12 uses a **mapped** magnetic field — the measured solenoid and torus field maps — rather than an analytic
-model. The field is provided by the `gfieldclas12bin` plugin under `plugins/field/`, which reads the CLAS12
+model. The field is provided by the `gfieldclas12-cmag` plugin under `plugins/field/`, which reads the CLAS12
 solenoid and torus binary maps through David Heddle's [cMag](https://github.com/JeffersonLab/clas12-cmag)
 library (the `clas12-cmag` subproject) and returns the composite field at each step point.
 
-The field is configured with the core GEMC generic `gfields` node, selecting this plugin with `type: clas12bin`:
+The field is configured with the core GEMC generic `gfields` node, selecting this plugin with
+`type: clas12-cmag`:
 
 ```yaml
 gfields:
   - name: clas12
-    type: clas12bin
+    type: clas12-cmag
     solenoid: Symm_solenoid_r601_phi1_z1201_13June2018
     torus: Symm_torus_r2501_phi16_z251_24Apr2018
+    solenoid_scale: 1
+    torus_scale: 1
+
+global_field: clas12
 ```
 
-Any additional scalar keys (map scales, displacements, overall origin/rotation, `interpolation`) are forwarded
+The `global_field` value is the configured field name (`clas12` above), not the solenoid/torus map names. The
+map names and the per-map scale factors belong to the `gfields` entry. This replaces the GEMC2
+`global_field: Symm_solenoid_...:Symm_torus_...` style and the old hardcoded `binary_torus` /
+`binary_solenoid` scale targets with explicit `torus`, `solenoid`, `torus_scale`, and `solenoid_scale`
+parameters.
+
+Any additional scalar keys (per-map displacements, overall origin/rotation, `interpolation`) are forwarded
 verbatim to the plugin.
 
 Field maps are downloaded to `<prefix>/fields` during `meson install` (see `meson/install_fields.py`) and the

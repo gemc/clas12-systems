@@ -151,6 +151,13 @@ std::unique_ptr<GDigitizedData> ECAL_digitization::digitizeHitImpl(GHit* ghit, s
         tdc_jitter = ecc.jitter_period * static_cast<double>((0 + ecc.jitter_phase) % ecc.jitter_cycles);
     }
 
+    // Debug instrumentation for the EC U-view low-strip deficit investigation. Enable by setting the
+    // environment variable ECAL_DEBUG_LOWSTRIP; it prints one line per hit in the U views (layers 4
+    // and 7) for the low (short) strips so the attenuation inputs can be compared with GEMC2.
+    static const bool ecal_debug = std::getenv("ECAL_DEBUG_LOWSTRIP") != nullptr;
+    const bool dbg = ecal_debug && (layer == 4 || layer == 7) && strip <= 13;
+    double dbg_latt_min = 0, dbg_latt_max = 0, dbg_xl_min = 0, dbg_xl_max = 0, dbg_att_last = 0;
+
     for (size_t s = 0; s < nsteps; s++) {
         const double xlocal = Lpos[s].x();
         double latt = pDx2 + xlocal;
@@ -160,6 +167,19 @@ std::unique_ptr<GDigitizedData> ECAL_digitization::digitizeHitImpl(GHit* ghit, s
         Etota += (Edep[s] / MeV) * att;
         FTtota += latt / fveff;
         DTtota += latt / dveff;
+
+        if (dbg) {
+            if (s == 0) {
+                dbg_latt_min = dbg_latt_max = latt;
+                dbg_xl_min = dbg_xl_max = xlocal;
+            } else {
+                dbg_latt_min = std::min(dbg_latt_min, latt);
+                dbg_latt_max = std::max(dbg_latt_max, latt);
+                dbg_xl_min = std::min(dbg_xl_min, xlocal);
+                dbg_xl_max = std::max(dbg_xl_max, xlocal);
+            }
+            dbg_att_last = att;
+        }
     }
 
     const double base_time = ghit->getAverageTime() / ns;
@@ -222,7 +242,19 @@ std::unique_ptr<GDigitizedData> ECAL_digitization::digitizeHitImpl(GHit* ghit, s
         G4UniformRand() > 1.0 / std::pow(1.0 + std::exp(-def0 * (ADC / 10.0 - def1)), def2)) {
         dtime_in_ns = 0;
     }
-    if (ecc.outputRAW == 0 && ADC / 10.0 < fthr) return nullptr;
+    const bool below_threshold = (ecc.outputRAW == 0 && ADC / 10.0 < fthr);
+
+    if (dbg) {
+        log->info(0, "ECAL_DEBUG_LOWSTRIP s/l/strip ", sector, "/", layer, "/", strip,
+                  " view ", view, " pDx2(mm) ", pDx2, " nsteps ", nsteps,
+                  " xlocal[min,max] ", dbg_xl_min, ",", dbg_xl_max,
+                  " latt[min,max] ", dbg_latt_min, ",", dbg_latt_max,
+                  " att_last ", dbg_att_last, " A ", A, " B ", B,
+                  " Etota(MeV) ", Etota, " gain ", G, " ADC ", ADC, " fthr ", fthr,
+                  " -> ", below_threshold ? "REJECTED(below fthr)" : "kept");
+    }
+
+    if (below_threshold) return nullptr;
 
     const double fadc_time = convert_to_precision(ftime_in_ns);
     const int tdc = da1 == 0 ? 0 : static_cast<int>(dtime_in_ns / da1);

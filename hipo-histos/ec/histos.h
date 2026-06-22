@@ -22,7 +22,7 @@ class ECHistos final : public SubsystemHistos {
     const std::string &label() const override { return label_; }
     long events() const override { return events_; }
 
-    void fill(const hipo::bank &ecal_adc, const hipo::bank &ecal_tdc);
+    void fill(const hipo::bank &ecal_adc, const hipo::bank &ecal_tdc, const hipo::bank &mc_true);
     void finalize() override;
     void write(TDirectory *directory) const override;
     void save_plots(const std::string &plot_dir) const override;
@@ -51,6 +51,10 @@ class ECHistos final : public SubsystemHistos {
     // The EC system has no hipo layers 1..3 (those are PCAL). The first EC layer is the inner U view
     // (hipo layer 4) and has exactly 36 components, i.e. a 6x6 matrix.
     static constexpr int kFirstLayer = kLayerMin;
+    // ecal hit type in the GEMC hipo detector-id map (MC::True "detector" column).
+    static constexpr int kEcalDetectorId = 7;
+    static constexpr int kXYBins = 100;
+    static constexpr double kXYRange = 5000.0;
     static constexpr int kAdcBins = 100;
     static constexpr double kAdcMax = 35000.0;
     static constexpr int kTdcBins = 100;
@@ -64,6 +68,7 @@ class ECHistos final : public SubsystemHistos {
     std::array<std::unique_ptr<TH1D>, kComponents> adc_;
     std::array<std::unique_ptr<TH1D>, kComponents> tdc_;
     std::array<std::unique_ptr<TH2D>, kSectors> occupancy_;
+    std::unique_ptr<TH2D> xy_global_;
 
     void book();
 };

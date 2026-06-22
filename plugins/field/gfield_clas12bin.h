@@ -18,8 +18,8 @@ extern "C" {
  *
  * This is the GEMC3 port of clas12Tags `gclas12BinaryMappedField`. It reads the CLAS12
  * solenoid and torus binary field maps through the cMag library and returns the composite
- * field value at a point. The field is exposed as the plugin `gfieldclas12binFactory`, so
- * a field definition selects it with `type: clas12bin`.
+ * field value at a point. The field is exposed as the plugin `gfieldclas12-cmagFactory`, so
+ * a field definition selects it with `type: clas12-cmag`.
  *
  * Parameters (all forwarded as scalar strings through the generic `gfields` option node):
  * - `solenoid`        : solenoid map base name (the `.dat` extension is added). Empty disables it.

@@ -37,6 +37,8 @@ if _gemc_prog.found()
     endif
 endif
 
+pkgconfig_prog = find_program('pkg-config', 'pkgconf', required : true)
+
 geant4_core_dep = dependency(
     'geant4_core',
     version      : '>=11.3.2',
@@ -49,7 +51,6 @@ geant4_core_dep = dependency(
 if not geant4_core_dep.found() and gemc_pkgconfig_dir != ''
     # Resolve geant4_core.pc straight from the GEMC install. pkg-config is invoked with the GEMC
     # pkgconfig dir prepended (geant4_core.pc has no Requires, so it is self-contained).
-    pkgconfig_prog = find_program('pkg-config', 'pkgconf', required : true)
     _g4c_env = environment()
     _g4c_env.prepend('PKG_CONFIG_PATH', gemc_pkgconfig_dir)
     _g4c_ver = run_command(
@@ -107,31 +108,21 @@ if not gemc_dep.found()
         if _gemc_prefix != ''
             gemc_prefix = _gemc_prefix
             message('gemc: pkg-config not found; falling back to binary prefix ' + _gemc_prefix)
-            # Parse Libs: directly from gemc.pc — pkg-config --libs fails when
-            # Requires packages (clhep, Qt6, geant4) are not all in PKG_CONFIG_PATH.
-            _gemc_link = run_command(
-                'sh', '-c',
-                '''pc="$1/lib/pkgconfig/gemc.pc"
-                   [ -f "$pc" ] || exit 1
-                   p=$(grep "^prefix=" "$pc" | head -1 | cut -d= -f2-)
-                   l="${p}/lib"
-                   grep "^Libs:" "$pc" | head -1 | sed "s/^Libs://" \
-                       | sed "s|\${libdir}|${l}|g; s|\${prefix}|${p}|g"''',
-                '_', _gemc_prefix,
-                check : false,
+            _gemc_pc_env = environment()
+            _gemc_pc_env.prepend('PKG_CONFIG_PATH', _gemc_prefix / 'lib' / 'pkgconfig')
+            _gemc_cflags = run_command(
+                pkgconfig_prog, '--cflags', 'gemc',
+                env : _gemc_pc_env,
+                check : true,
             ).stdout().strip().split()
-            # Mirror the transitive deps that gemc's pkg-config Requires field
-            # normally provides: clhep and geant4_core headers/libs.
-            _gemc_transitive = []
-            if clhep_deps.found()
-                _gemc_transitive += [clhep_deps]
-            endif
-            if geant4_core_dep.found()
-                _gemc_transitive += [geant4_core_dep]
-            endif
+            _gemc_link = run_command(
+                pkgconfig_prog, '--libs', 'gemc',
+                env : _gemc_pc_env,
+                check : true,
+            ).stdout().strip().split()
             gemc_dep = declare_dependency(
                 include_directories : [include_directories(_gemc_prefix / 'include')],
-                dependencies        : _gemc_transitive,
+                compile_args        : _gemc_cflags,
                 link_args           : _gemc_link,
             )
         endif
@@ -149,6 +140,8 @@ elif gemc_dep.type_name() == 'pkgconfig'
         include_directories : [include_directories(gemc_dep.get_variable(pkgconfig : 'includedir'))],
     )
 endif
+
+gemc_plugin_dep = gemc_dep.partial_dependency(compile_args : true, includes : true)
 
 if gemc_prefix != ''
     gemc_geant4_core_pc = gemc_prefix / 'lib' / 'pkgconfig' / 'geant4_core.pc'

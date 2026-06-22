@@ -231,6 +231,17 @@ void DCHistos::book()
         }
     }
 
+    xy_global_ = std::make_unique<TH2D>(
+        (safe_label_ + "_dc_xy_global").c_str(),
+        "DC hit y vs x (global);x [mm];y [mm];entries",
+        kXYBins,
+        -kXYRange,
+        kXYRange,
+        kXYBins,
+        -kXYRange,
+        kXYRange);
+    xy_global_->Sumw2();
+
     layer_wire_ = std::make_unique<TH2D>(
         (safe_label_ + "_dc_layer_wire_occupancy").c_str(),
         "DC layer-wire occupancy;wire;layer;occupancy [%]",
@@ -343,6 +354,10 @@ void DCHistos::fill(const hipo::bank &mc_true, hipo::bank &dc_tdc,
             continue;
         }
 
+        // Raw global hit position (y vs x). Filled once per qualifying DC hit, unweighted, so the
+        // two-file comparison runs on raw bin entries.
+        xy_global_->Fill(mc_true.getDouble("avgX", row), mc_true.getDouble("avgY", row));
+
         const double vx = mc_true.getDouble("vx", row);
         const double vy = mc_true.getDouble("vy", row);
         const double vz = mc_true.getDouble("vz", row);
@@ -454,6 +469,7 @@ void DCHistos::finalize()
         occupancy_summary_[region]->SetMinimum(0.0);
     }
     layer_wire_->Scale(occupancy_norm / kSectors);
+    // xy_global_ is intentionally left as raw entry counts (no rate/occupancy normalization).
 }
 
 void DCHistos::write(TDirectory *directory) const
@@ -471,6 +487,7 @@ void DCHistos::write(TDirectory *directory) const
             tdc_[region][sector]->Write();
         }
     }
+    xy_global_->Write();
     layer_wire_->Write();
     mc_particle_momentum_->Write();
     mc_particle_theta_->Write();
@@ -539,6 +556,8 @@ void DCHistos::save_plots(const std::string &plot_dir) const
 
     draw_2d(layer_wire_.get(), "DC layer-wire occupancy",
             plot_file(plot_dir, safe_label_ + "_dc_layer_wire_occupancy"));
+    draw_2d(xy_global_.get(), label_ + " DC hit y vs x (global)",
+            plot_file(plot_dir, safe_label_ + "_dc_xy_global"));
     draw_overlay({mc_particle_momentum_.get()}, {label_}, "MC particle momentum",
                  plot_file(plot_dir, safe_label_ + "_mc_particle_momentum"));
     draw_overlay({mc_particle_theta_.get()}, {label_}, "MC particle theta",
@@ -642,6 +661,7 @@ std::vector<TH2 *> DCHistos::comparison_2d_histos() const
         rz_vertex_[1].get(),
         rz_vertex_[2].get(),
         layer_wire_.get(),
+        xy_global_.get(),
     };
 }
 
@@ -652,6 +672,7 @@ std::vector<std::string> DCHistos::comparison_2d_names() const
         "dc_r2_rz_vertex",
         "dc_r3_rz_vertex",
         "dc_layer_wire_occupancy",
+        "dc_xy_global",
     };
 }
 

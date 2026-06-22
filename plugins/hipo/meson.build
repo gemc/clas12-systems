@@ -10,6 +10,6 @@ clas12_plugins += [{
         'event/publishTrueInfo.cc',
         'event/publishGenerated.cc',
     ),
-    'dependencies'        : [gemc_dep, hipo_cpp_dep],
+    'dependencies'        : [gemc_plugin_dep, hipo_cpp_dep],
     'include_directories' : [include_directories('.')],
 }]

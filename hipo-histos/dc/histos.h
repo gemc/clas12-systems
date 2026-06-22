@@ -46,6 +46,8 @@ class DCHistos final : public SubsystemHistos {
     static constexpr int kWires = 112;
     static constexpr int kBins = 300;
     static constexpr int kZBins = kBins / 2;
+    static constexpr int kXYBins = 100;
+    static constexpr double kXYRange = 5000.0;
 
     std::string label_;
     std::string safe_label_;
@@ -67,6 +69,7 @@ class DCHistos final : public SubsystemHistos {
     std::array<std::array<double, kSectors>, kRegions> occupancy_event_sum_sq_ = {};
     std::array<std::array<std::unique_ptr<TH1D>, kSectors>, kRegions> tdc_;
     std::array<std::unique_ptr<TH2D>, kRegions> rz_vertex_;
+    std::unique_ptr<TH2D> xy_global_;
     std::unique_ptr<TH2D> layer_wire_;
     std::unique_ptr<TH1D> mc_particle_momentum_;
     std::unique_ptr<TH1D> mc_particle_theta_;

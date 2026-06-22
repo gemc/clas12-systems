@@ -176,7 +176,7 @@ foreach plugin : clas12_plugins
         link_with           : plugin.get('link_with', []),
         name_prefix         : '',
         name_suffix         : 'gplugin',
-        override_options    : ['b_staticpic=true'],
+        override_options    : ['b_staticpic=true', 'b_lundef=false'],
     )
     clas12_plugin_targets += plugin_target
 endforeach
@@ -185,7 +185,7 @@ endforeach
 # CLAS12 magnetic field maps
 #
 # Download the binary/ascii field maps to <prefix>/fields during `meson install` (skips files
-# that already exist). The clas12bin field plugin reads them from the "fields" directory installed
+# that already exist). The clas12-cmag field plugin reads them from the "fields" directory installed
 # next to it (<plugin_dir>/../fields), so no FIELD_DIR environment variable is needed at runtime.
 # ---------------------------------------------------------------------------
 meson.add_install_script(

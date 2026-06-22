@@ -4,12 +4,17 @@
 // gdynamic
 #include "gemc/gdynamicDigitization/gdynamicdigitization.h"
 
+// geant4
+#include "G4ThreeVector.hh"
+
 // dc plugin
 #include "dc_constants.h"
 
 // c++
+#include <memory>
 #include <string>
 
+class GField;
 
 class DC_digitization : public GDynamicDigitization
 {
@@ -41,4 +46,9 @@ private:
 	                               double bfield, int sec, int sl) const;
 	[[nodiscard]] double calc_TimeBeta(double x, double beta, int sec, int sl) const;
 	[[nodiscard]] double doca_smearing(double x, double beta, int sec, int sl) const;
+	void initialize_magnetic_field();
+	[[nodiscard]] double magnetic_field_magnitude_tesla(const G4ThreeVector& position);
+
+	bool magneticFieldChecked = false;
+	std::shared_ptr<GField> magneticField;
 };

@@ -1,6 +1,11 @@
 // dc plugin
 #include "dc.h"
 
+// gemc
+#include <gemc/gfields/gfieldConventions.h>
+#include <gemc/gfields/gmagneto.h>
+#include <gemc/guts/gutsConventions.h>
+
 // geant4
 #include "G4ThreeVector.hh"
 #include "Randomize.hh"
@@ -12,6 +17,8 @@
 
 // c++
 #include <cmath>
+#include <exception>
+#include <string>
 #include <vector>
 
 
@@ -32,12 +39,16 @@ bool valid_dc_identity(int sector, int superlayer, int layer, int wire) {
            wire >= 1 && wire <= DCConstants::NWIRES;
 }
 
+bool is_unset_field_name(const std::string& name) {
+    return name.empty() || name == UNINITIALIZEDSTRINGQUANTITY || name == "not provided";
+}
+
 } // namespace
 
 
 // Ported from dc_HitProcess::calc_Time in clas12Tags.
 // Returns the drift time [ns] for distance x [cm] using the polynomial parameterisation.
-// bfield is in Tesla; with bfield=0 (not stored in GEMC3 GHit) the B-field correction vanishes.
+// bfield is in Tesla; with bfield=0 the B-field correction vanishes.
 double DC_digitization::calc_Time(double x, double dmax, double tmax, double alpha,
                                    double bfield, int sec, int sl) const {
     using namespace CLHEP;
@@ -93,6 +104,56 @@ double DC_digitization::doca_smearing(double x, [[maybe_unused]] double beta, in
 }
 
 
+void DC_digitization::initialize_magnetic_field() {
+    if (magneticFieldChecked) return;
+    magneticFieldChecked = true;
+
+    if (!gopts->doesOptionExist(GLOBAL_FIELD_OPTION)) return;
+
+    const std::string fieldName = gopts->getScalarString(GLOBAL_FIELD_OPTION);
+    if (is_unset_field_name(fieldName)) return;
+
+    for (const auto& fieldDefinition : gfields::get_GFieldDefinition(gopts)) {
+        if (fieldDefinition.name != fieldName) continue;
+
+        const auto torusScaleIt = fieldDefinition.field_parameters.find("torus_scale");
+        if (torusScaleIt != fieldDefinition.field_parameters.end()) {
+            try {
+                dcc.fieldPolarity = std::stod(torusScaleIt->second) < 0.0 ? -1.0 : 1.0;
+            } catch (const std::exception&) {
+                log->warning("Could not parse torus_scale <", torusScaleIt->second,
+                             "> for DC field polarity; using +1.");
+                dcc.fieldPolarity = 1.0;
+            }
+        }
+        break;
+    }
+
+    auto magneto = std::make_unique<GMagneto>(gopts);
+    if (magneto->isField(fieldName)) {
+        magneticField = magneto->getField(fieldName);
+        log->info(1, " DC digitization using magnetic field <", fieldName,
+                  "> with torus polarity ", dcc.fieldPolarity);
+    } else {
+        log->warning("Global field <", fieldName, "> is configured but was not available to DC digitization.");
+    }
+}
+
+
+double DC_digitization::magnetic_field_magnitude_tesla(const G4ThreeVector& position) {
+    using namespace CLHEP;
+
+    initialize_magnetic_field();
+    if (!magneticField) return 0.0;
+
+    const double point[3] = {position.x(), position.y(), position.z()};
+    double bfield[3] = {0.0, 0.0, 0.0};
+    magneticField->GetFieldValue(point, bfield);
+
+    return std::sqrt(bfield[0] * bfield[0] + bfield[1] * bfield[1] + bfield[2] * bfield[2]) / tesla;
+}
+
+
 // Ported from dc_HitProcess::integrateDgt in clas12Tags.
 // Computes the smeared TDC time for the fastest hit on the primary track and returns a
 // GDigitizedData with sector, global layer (1-36), component (wire), TDC_order, and TDC_TDC.
@@ -139,13 +200,14 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
     const auto   tids   = ghit->getTids();
     const auto   times  = ghit->getTimes();
     const auto   edeps  = ghit->getEdeps();
+    const auto   pos    = ghit->getGlobalPositions();
     const auto   Lpos   = ghit->getLocalPositions();
     const auto   mom    = ghit->getMomenta();
     const auto   trackE = ghit->getTrackEs();
     const size_t nsteps = ghit->nsteps();
 
     if (tids.size() < nsteps || times.size() < nsteps || edeps.size() < nsteps ||
-        Lpos.size() < nsteps || mom.size() < nsteps || trackE.size() < nsteps)
+        pos.size() < nsteps || Lpos.size() < nsteps || mom.size() < nsteps || trackE.size() < nsteps)
         return nullptr;
 
     // TDC jitter (same for every step in this hit)
@@ -184,7 +246,6 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
     if (trackIds == -1) trackIds = trackIdw;
 
     // --- Loop 2: find the step with the smallest DOCA on the primary track to compute alpha ---
-    // B-field is not stored in GEMC3 GHit; set thisMgnf=0 so all B-dependent corrections vanish.
     double alpha    = 0.0;
     double doca_val = 1.0e10;
     double thisMgnf = 0.0;
@@ -209,9 +270,11 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
             rv.rotateZ(rotate_to_wire);
             alpha = std::asin((const1 * rv.x() + const2 * rv.y()) / rv.mag()) / deg;
 
-            // B-field isochrone-twist correction; theta0=0 when thisMgnf=0
+            thisMgnf = magnetic_field_magnitude_tesla(pos[s]);
+
+            // B-field isochrone-twist correction; theta0=0 when no global field is configured.
             const double theta0 = std::acos(1.0 - 0.02 * thisMgnf) / deg;
-            alpha -= theta0; // fieldPolarity assumed +1 (standard CLAS12); term is zero anyway
+            alpha -= dcc.fieldPolarity * theta0;
 
             // Reduce alpha to the symmetric [0, 30] deg range (Mac's reduced alpha, VZ)
             double ralpha = std::fabs(alpha * deg);

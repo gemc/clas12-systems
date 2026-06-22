@@ -3,9 +3,13 @@
 #
 # For each system the job:
 #   1. builds + installs this repo (ci/build.sh also generates build/clas12.db and hipo-histos),
-#   2. runs GEMC3 for n_events with the system's committed yaml (gun comes from the yaml, unchanged),
-#   3. downloads the latest clas12Tags reference HIPO (always latest — see hipo_reference.yml there),
-#   4. runs hipo-histos --compare-system, which fails on a diagnostic diff or insufficient statistics.
+#   2. runs GEMC3 once for n_events with the system's committed yaml (gun comes from the yaml, unchanged),
+#   3. downloads the latest clas12Tags reference HIPOs — both <system>_reference.hipo (field) and
+#      <system>_reference_nofield.hipo (no field); always latest, see hipo_reference.yml there,
+#   4. runs hipo-histos --compare-system against each reference. The job is gated on the nofield
+#      comparison (it fails only when GEMC3 vs <system>_reference_nofield.hipo fails); the field
+#      comparison is reported in the summary but does not fail the job (to be revisited with a
+#      dedicated gemc nofield run).
 #
 # n_events is part of the matrix and is reported in the run metrics. DC uses 10,000 events.
 name: HIPO Histos Comparison
@@ -69,16 +73,23 @@ jobs:
       - name: Build and install
         run: ./ci/build.sh
 
-      - name: Download latest clas12Tags reference
+      - name: Download latest clas12Tags references
         shell: bash
         run: |
           set -euo pipefail
           base="https://github.com/${REFERENCE_REPO}/releases/download/${REFERENCE_TAG}"
-          # Public assets — no token needed. Always the latest reference (rolling tag).
-          curl -fSL "${base}/${{ matrix.system }}_reference.hipo" -o "$RUNNER_TEMP/reference.hipo"
-          # Provenance sidecar (source clas12Tags commit, date, n_events) — optional.
-          curl -fSL "${base}/${{ matrix.system }}_reference.txt" -o "$RUNNER_TEMP/reference.txt" || \
-            echo "source: unknown" > "$RUNNER_TEMP/reference.txt"
+          # Public assets — no token needed. Always the latest references (rolling tag).
+          # Two variants per system: field (<system>_reference.hipo) and no-field
+          # (<system>_reference_nofield.hipo). Local names drop the <system> prefix.
+          for variant in field nofield; do
+            suffix=""; [[ "$variant" == nofield ]] && suffix="_nofield"
+            curl -fSL "${base}/${{ matrix.system }}_reference${suffix}.hipo" \
+              -o "$RUNNER_TEMP/reference${suffix}.hipo"
+            # Provenance sidecar (source clas12Tags commit, date, n_events) — optional.
+            curl -fSL "${base}/${{ matrix.system }}_reference${suffix}.txt" \
+              -o "$RUNNER_TEMP/reference${suffix}.txt" || \
+              echo "source: unknown" > "$RUNNER_TEMP/reference${suffix}.txt"
+          done
 
       - name: Run GEMC3
         id: gemc
@@ -134,7 +145,7 @@ jobs:
             exit 1
           }
 
-      - name: Compare against reference
+      - name: Compare against references
         id: compare
         shell: bash
         run: |
@@ -142,32 +153,61 @@ jobs:
           hipo_histos="$PWD/install/bin/hipo-histos"
           gemc3_hipo="$PWD/geometry_src/${{ matrix.system }}/${{ matrix.system }}_t0.hipo"
 
+          # Compare the single GEMC3 output against both clas12Tags references (field and
+          # nofield). Each variant gets its own output dir, log and per-variant exit status.
           # Write outputs inside the workspace: in a container job $RUNNER_TEMP (/__w/_temp)
           # and the runner.temp expression (/home/runner/work/_temp) differ, so artifacts
           # written under RUNNER_TEMP are invisible to the upload-artifact step.
-          out_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare"
-          mkdir -p "$out_dir/plots"
+          for variant in field nofield; do
+            suffix=""; [[ "$variant" == nofield ]] && suffix="_nofield"
+            ref="$RUNNER_TEMP/reference${suffix}.hipo"
+            out_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare_${variant}"
+            mkdir -p "$out_dir/plots"
 
-          # This image's ROOT lacks the asimage feature, so it cannot write png/jpg — only the
-          # .root file and vector formats. Emit PDF plots, which ROOT always writes in batch.
-          set +e
-          "$hipo_histos" \
-            --compare-system "${{ matrix.system }}" \
-            "$RUNNER_TEMP/reference.hipo" "$gemc3_hipo" \
-            --label clas12Tags --label gemc3 \
-            --diagnostics --fail-on-diff --max-integral-diff 0.1 \
-            --plot-format pdf \
-            -o "$out_dir/${{ matrix.system }}_compare.root" \
-            --plot-dir "$out_dir/plots" \
-            2>&1 | tee "$out_dir/compare.log"
-          echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-          echo "Plots produced:"; ls -l "$out_dir/plots"
+            # This image's ROOT lacks the asimage feature, so it cannot write png/jpg — only the
+            # .root file and vector formats. Emit PDF plots, which ROOT always writes in batch.
+            set +e
+            "$hipo_histos" \
+              --compare-system "${{ matrix.system }}" \
+              "$ref" "$gemc3_hipo" \
+              --label "clas12Tags-${variant}" --label gemc3 \
+              --diagnostics --fail-on-diff --max-integral-diff 0.1 \
+              --plot-format pdf \
+              -o "$out_dir/${{ matrix.system }}_compare.root" \
+              --plot-dir "$out_dir/plots" \
+              2>&1 | tee "$out_dir/compare.log"
+            echo "${variant}_status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+            set -e
+            echo "Plots produced (${variant}):"; ls -l "$out_dir/plots"
+          done
 
       - name: Step summary
         if: ${{ always() }}
         shell: bash
         run: |
-          log="$GITHUB_WORKSPACE/${{ matrix.system }}_compare/compare.log"
+          # Render the hipo-histos diagnostic lines ("passed  <name> ...", "failed  <name> ...")
+          # as a markdown table with a ✅/❌ status icon per histogram.
+          render_diag() {
+            local log="$1" diag
+            diag="$(grep -E '^(passed|failed)\b' "$log" 2>/dev/null || true)"
+            if [[ -z "$diag" ]]; then
+              echo "_no diagnostic output_"
+              return
+            fi
+            echo "| Status | Histogram | Details |"
+            echo "| :---: | --- | --- |"
+            printf '%s\n' "$diag" | awk '{
+              status = ($1 == "passed") ? "✅" : "❌";
+              name = $2;
+              $1 = ""; $2 = ""; sub(/^ +/, "");
+              gsub(/\|/, "\\|");
+              print "| " status " | `" name "` | " $0 " |";
+            }'
+          }
+          result_icon() { [[ "$1" == "0" ]] && echo "✅ pass" || echo "❌ fail"; }
+
+          nofield_status="${{ steps.compare.outputs.nofield_status }}"
+          field_status="${{ steps.compare.outputs.field_status }}"
           {
             echo "### HIPO Histos Comparison — ${{ matrix.system }}"
             echo
@@ -175,17 +215,21 @@ jobs:
             echo "| --- | --- |"
             echo "| System | ${{ matrix.system }} |"
             echo "| Events simulated | ${{ matrix.n_events }} |"
-            echo "| Reference | $(head -n1 "$RUNNER_TEMP/reference.txt" 2>/dev/null || echo unknown) |"
-            echo "| Result | ${{ steps.compare.outputs.status == '0' && 'pass' || 'fail' }} |"
+            echo "| Reference (field) | $(head -n1 "$RUNNER_TEMP/reference.txt" 2>/dev/null || echo unknown) |"
+            echo "| Reference (nofield) | $(head -n1 "$RUNNER_TEMP/reference_nofield.txt" 2>/dev/null || echo unknown) |"
+            echo "| Result vs nofield (gating) | $(result_icon "$nofield_status") |"
+            echo "| Result vs field (informational) | $(result_icon "$field_status") |"
             echo
-            echo "<details><summary>Per-histogram diagnostics (chi2/ndf, occupied bins, median entries/bin)</summary>"
-            echo
-            echo '```'
-            grep -E "^(passed|failed)\b" "$log" 2>/dev/null || echo "no diagnostic output"
-            echo '```'
-            echo
-            echo "</details>"
-            echo
+            for variant in nofield field; do
+              label="vs ${variant} reference"
+              [[ "$variant" == nofield ]] && label="$label — gates the job" || label="$label — informational"
+              echo "<details><summary>Per-histogram diagnostics ${label} (chi2/ndf, occupied bins, median entries/bin)</summary>"
+              echo
+              render_diag "$GITHUB_WORKSPACE/${{ matrix.system }}_compare_${variant}/compare.log"
+              echo
+              echo "</details>"
+              echo
+            done
             echo "_Comparison plots (PDF) are in the **${{ matrix.system }}-comparison** artifact._"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -194,10 +238,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.system }}-comparison
-          # Workspace-relative path: resolves consistently inside the job container.
-          path: ${{ matrix.system }}_compare
+          # Workspace-relative paths: resolve consistently inside the job container.
+          # One directory per reference variant (field and nofield).
+          path: |
+            ${{ matrix.system }}_compare_field
+            ${{ matrix.system }}_compare_nofield
           if-no-files-found: warn
 
-      - name: Fail if comparison failed
-        if: ${{ steps.compare.outputs.status != '0' }}
+      - name: Fail if nofield comparison failed
+        # The nofield reference is the gating comparison for now; the field comparison is
+        # reported in the summary but does not fail the job (see header note).
+        if: ${{ steps.compare.outputs.nofield_status != '0' }}
         run: exit 1

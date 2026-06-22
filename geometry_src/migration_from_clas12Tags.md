@@ -220,9 +220,10 @@ double edep_eV  = edeps[s]   / eV;     // G4 MeV → eV for threshold comparison
 
 ### B-field
 
-GEMC3 `GHit` does **not** store the magnetic field at the step.  Set `thisMgnf = 0.0`;
-all B-field-dependent correction terms will vanish automatically (they are proportional
-to `bfield²`).
+DC digitization now evaluates the configured GEMC3 global field at the stored step global position.
+Use the field magnitude in Tesla for `thisMgnf`, matching GEMC2 `mgnf[s]/tesla`. If no global field
+is configured, use `thisMgnf = 0.0`; all B-field-dependent correction terms vanish automatically
+because they are proportional to `bfield²`.
 
 ### Two-loop pattern
 
@@ -248,8 +249,8 @@ Some GEMC2 behaviours must be preserved for numerical agreement with reconstruct
 - **`sl_sign` loop bug**: the GEMC2 loop over `i=0..2` with `if(SLI==2*i+1) sl_sign=-1;
   else sl_sign=1;` overwrites on every iteration, so only `SLI==5` yields `-1`.
   Replicate as `const int sl_sign = (SLI == 5) ? -1 : 1`.
-- **`fieldPolarity`**: not stored in GEMC3; the B-field correction term is zero anyway
-  when `thisMgnf=0`.
+- **`fieldPolarity`**: derive the DC alpha-twist polarity from the configured `torus_scale`
+  sign when a global field is available; default to `+1` when no torus scale is provided.
 
 ### GDigitizedData output
 

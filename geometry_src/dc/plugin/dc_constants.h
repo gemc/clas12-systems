@@ -42,6 +42,9 @@ struct DCConstants {
     // -- signal propagation speed along the wire (hardcoded, matches reconstruction)
     double vprop = 29.97924580 * 0.7 * CLHEP::cm / CLHEP::ns;
 
+    // -- torus field polarity used by the alpha isochrone-twist correction
+    double fieldPolarity = 1.0;
+
     // -- T0 corrections [sector][superlayer][slot][cable] (/calibration/dc/v2/t0)
     double T0Correction[6][6][7][6]{};
 

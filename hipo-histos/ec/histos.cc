@@ -41,13 +41,18 @@ void draw_pad_label(const std::string &label)
 
 void draw_comparison_pad(const std::vector<TH1 *> &histos, const std::vector<std::string> &labels,
                          const std::string &pad_label, bool draw_legend,
-                         const bool *passed = nullptr)
+                         const bool *passed = nullptr, double shared_ymax = -1.0)
 {
     const std::array<int, 4> colors = {kBlack, kRed + 1, kBlue + 1, kGreen + 2};
     const std::array<int, 4> markers = {20, 24, 21, 25};
-    double ymax = 0.0;
-    for (auto *histo : histos) {
-        ymax = std::max(ymax, max_bin_content_with_error(histo));
+    // A non-negative shared_ymax pins every pad of a comparison canvas to the same vertical scale;
+    // otherwise fall back to a per-pad maximum.
+    double ymax = shared_ymax;
+    if (ymax < 0.0) {
+        ymax = 0.0;
+        for (auto *histo : histos) {
+            ymax = std::max(ymax, max_bin_content_with_error(histo));
+        }
     }
 
     bool drew_one = false;
@@ -133,7 +138,7 @@ void ECHistos::book()
         const int s = sector + 1;
         occupancy_[sector] = std::make_unique<TH2D>(
             (safe_label_ + "_ec_s" + std::to_string(s) + "_occupancy").c_str(),
-            ("EC sector " + std::to_string(s) + " occupancy;component;layer;occupancy [%]").c_str(),
+            ("EC sector " + std::to_string(s) + " hit counts;component;layer;counts").c_str(),
             kComponents,
             0.5,
             kComponents + 0.5,
@@ -175,21 +180,10 @@ void ECHistos::fill(const hipo::bank &ecal_adc, const hipo::bank &ecal_tdc)
 
 void ECHistos::finalize()
 {
-    if (normalized_) {
-        return;
-    }
+    // The 2D channel maps are kept as raw hit counts so the comparison runs on Poisson-distributed
+    // counts (per-event normalization is applied only when the two inputs have different event
+    // counts, via diagnostic_scale, exactly like the ADC/TDC spectra). Nothing else to do here.
     normalized_ = true;
-
-    if (events_ <= 0) {
-        return;
-    }
-
-    // Each occupancy bin is a single channel (one component in one layer of one sector), so the per-channel
-    // occupancy in percent is simply 100 * hits / events.
-    const double occupancy_norm = 100.0 / static_cast<double>(events_);
-    for (int sector = 0; sector < kSectors; ++sector) {
-        occupancy_[sector]->Scale(occupancy_norm);
-    }
 }
 
 void ECHistos::write(TDirectory *directory) const
@@ -235,7 +229,7 @@ void ECHistos::save_plots(const std::string &plot_dir) const
     show_canvas(tdc_canvas);
 
     auto *occupancy_canvas = make_canvas("c_" + safe_label_ + "_ec_occupancy",
-                                         label_ + " EC occupancy", 2100, 1300);
+                                         label_ + " EC hit counts", 2100, 1300);
     occupancy_canvas->Divide(3, 2, 0.001, 0.001);
     for (int sector = 0; sector < kSectors; ++sector) {
         occupancy_canvas->cd(sector + 1);
@@ -243,7 +237,7 @@ void ECHistos::save_plots(const std::string &plot_dir) const
         gPad->SetRightMargin(0.15);
         gPad->SetTopMargin(0.10);
         occupancy_[sector]->DrawCopy("colz");
-        draw_pad_label("S" + std::to_string(sector + 1) + " occupancy");
+        draw_pad_label("S" + std::to_string(sector + 1) + " counts");
     }
     occupancy_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ec_occupancy").c_str());
     show_canvas(occupancy_canvas);
@@ -307,7 +301,8 @@ std::vector<std::string> ECHistos::diagnostic_names() const
 double ECHistos::diagnostic_scale(const std::string &name, bool normalize) const
 {
     const bool normalizable = name.find("_adc") != std::string::npos ||
-                              name.find("_tdc") != std::string::npos;
+                              name.find("_tdc") != std::string::npos ||
+                              name.find("_occupancy") != std::string::npos;
     if (!normalize || events_ <= 0 || !normalizable) {
         return 1.0;
     }
@@ -414,6 +409,20 @@ void ECSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
         auto *canvas = make_canvas("c_ec_l" + layer + "_" + spec.suffix + "_compare", spec.title,
                                    2000, 2000);
         canvas->Divide(matrix, matrix, 0.001, 0.001);
+
+        // First pass: find the largest bin (with error) across every component and both files so
+        // all pads of this comparison canvas share a single vertical scale.
+        double shared_ymax = 0.0;
+        for (int component = 0; component < components; ++component) {
+            for (const auto *ec_histo : ec_histos) {
+                auto *histo = (ec_histo->*spec.accessor)(component);
+                const double scale = (normalize && histo != nullptr && ec_histo->events() > 0)
+                                         ? 1.0 / static_cast<double>(ec_histo->events())
+                                         : 1.0;
+                shared_ymax = std::max(shared_ymax, max_bin_content_with_error(histo) * scale);
+            }
+        }
+
         for (int component = 0; component < components; ++component) {
             canvas->cd(component + 1);
             gPad->SetGrid();
@@ -440,7 +449,7 @@ void ECSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
             const bool has_status = status != diagnostics.statuses.end();
             const bool passed = has_status && status->second;
             draw_comparison_pad(comparison, labels, "C" + std::to_string(component + 1),
-                                component == 0, has_status ? &passed : nullptr);
+                                component == 0, has_status ? &passed : nullptr, shared_ymax);
         }
         draw_canvas_header(canvas, header);
         canvas->SaveAs(plot_file(plot_dir, "compare_ec_l" + layer + "_" + spec.suffix).c_str());

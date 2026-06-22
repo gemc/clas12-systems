@@ -31,6 +31,18 @@ double rel_integral_difference(double a, double b)
     return std::abs(a - b) / scale;
 }
 
+// Significance of the difference between two integrals expressed in standard deviations, combining
+// their (already scaled) statistical uncertainties in quadrature. Returns 0 when neither integral
+// carries an uncertainty (e.g. empty histograms), which keeps such cases out of the integral gate.
+double integral_significance(double a, double b, double error_a, double error_b)
+{
+    const double variance = error_a * error_a + error_b * error_b;
+    if (variance <= 0.0) {
+        return 0.0;
+    }
+    return std::abs(a - b) / std::sqrt(variance);
+}
+
 double median_of(std::vector<double> values)
 {
     if (values.empty()) {
@@ -104,37 +116,54 @@ void apply_stats(HistoCompareResult &result, const HistoStats &a, const HistoSta
     result.median_per_bin_b = b.median_occupied;
 }
 
-std::string fail_reason(double chi2_ndf, double rel_integral_diff, double max_abs_bin_diff,
-                        const HistoCompareOptions &options)
+std::string fail_reason(const HistoCompareResult &result, const HistoCompareOptions &options)
 {
     std::ostringstream reason;
     bool first = true;
 
-    if (chi2_ndf > options.max_chi2_ndf) {
-        reason << "chi2/ndf " << chi2_ndf << " > " << options.max_chi2_ndf;
+    // Only gate on chi2/ndf once enough bins survive the entries floor; with one or two bins a
+    // single outlier dominates chi2/ndf and is not statistically meaningful.
+    if (result.bins_compared >= options.min_chi2_bins && result.chi2_ndf > options.max_chi2_ndf) {
+        reason << "chi2/ndf " << result.chi2_ndf << " > " << options.max_chi2_ndf;
         first = false;
     }
-    if (rel_integral_diff > options.max_rel_integral_diff) {
+
+    // A relative integral difference only counts when it is also statistically significant. This
+    // keeps low-statistics histograms (where a few counts give a large relative swing) from failing
+    // on noise, while still catching genuine rate/normalization shifts in well-populated histograms.
+    const bool integral_significant =
+        options.max_integral_sigma < 0.0 || result.integral_sigma > options.max_integral_sigma;
+    if (result.rel_integral_diff > options.max_rel_integral_diff && integral_significant) {
         if (!first) {
             reason << "; ";
         }
-        reason << "relative integral diff " << rel_integral_diff << " > "
-               << options.max_rel_integral_diff;
+        reason << "relative integral diff " << result.rel_integral_diff << " > "
+               << options.max_rel_integral_diff << " at " << result.integral_sigma << " sigma";
         first = false;
     }
-    if (options.max_abs_bin_diff >= 0.0 && max_abs_bin_diff > options.max_abs_bin_diff) {
+    if (options.max_abs_bin_diff >= 0.0 && result.max_abs_bin_diff > options.max_abs_bin_diff) {
         if (!first) {
             reason << "; ";
         }
-        reason << "max bin diff " << max_abs_bin_diff << " > " << options.max_abs_bin_diff;
+        reason << "max bin diff " << result.max_abs_bin_diff << " > " << options.max_abs_bin_diff;
     }
 
     return reason.str();
 }
 
 void compare_bin(double value_a, double value_b, double error_a, double error_b, double scale_a,
-                 double scale_b, double &chi2, double &max_abs_bin_diff, int &bins_compared)
+                 double scale_b, double min_entries_per_bin, double &chi2, double &max_abs_bin_diff,
+                 int &bins_compared, int &bins_skipped)
 {
+    // When a minimum is configured, ignore bins that do not have enough raw entries for the
+    // comparison to be statistically meaningful. The threshold is applied on the unscaled
+    // contents (before normalization) and, matching the "worst of the two" philosophy, a bin is
+    // skipped when either histogram falls below the floor.
+    if (min_entries_per_bin >= 0.0 && std::min(value_a, value_b) < min_entries_per_bin) {
+        ++bins_skipped;
+        return;
+    }
+
     const double scaled_a = value_a * scale_a;
     const double scaled_b = value_b * scale_b;
     const double scaled_error_a = error_a * scale_a;
@@ -158,21 +187,7 @@ void finish_result(HistoCompareResult &result, const HistoCompareOptions &option
 {
     result.chi2_ndf = result.bins_compared > 0 ? result.chi2_ndf / result.bins_compared : 0.0;
     result.rel_integral_diff = rel_integral_difference(result.integral_a, result.integral_b);
-    result.reason = fail_reason(result.chi2_ndf, result.rel_integral_diff,
-                                result.max_abs_bin_diff, options);
-
-    if (options.min_entries_per_bin >= 0.0) {
-        const double worst_median = std::min(result.median_per_bin_a, result.median_per_bin_b);
-        if (worst_median < options.min_entries_per_bin) {
-            std::ostringstream reason;
-            if (!result.reason.empty()) {
-                reason << result.reason << "; ";
-            }
-            reason << "insufficient statistics: median entries/occupied bin " << worst_median
-                   << " < " << options.min_entries_per_bin;
-            result.reason = reason.str();
-        }
-    }
+    result.reason = fail_reason(result, options);
 
     result.passed = result.reason.empty();
     if (result.passed) {
@@ -194,14 +209,19 @@ HistoCompareResult compare_th1(const TH1 &a, const TH1 &b, const HistoCompareOpt
 
     apply_stats(result, th1_stats(a), th1_stats(b));
 
-    result.integral_a = a.Integral(1, a.GetNbinsX()) * options.scale_a;
-    result.integral_b = b.Integral(1, b.GetNbinsX()) * options.scale_b;
+    double error_a = 0.0;
+    double error_b = 0.0;
+    result.integral_a = a.IntegralAndError(1, a.GetNbinsX(), error_a) * options.scale_a;
+    result.integral_b = b.IntegralAndError(1, b.GetNbinsX(), error_b) * options.scale_b;
+    result.integral_sigma = integral_significance(result.integral_a, result.integral_b,
+                                                  error_a * options.scale_a, error_b * options.scale_b);
     double chi2 = 0.0;
 
     for (int xbin = 1; xbin <= a.GetNbinsX(); ++xbin) {
         compare_bin(a.GetBinContent(xbin), b.GetBinContent(xbin), a.GetBinError(xbin),
-                    b.GetBinError(xbin), options.scale_a, options.scale_b, chi2,
-                    result.max_abs_bin_diff, result.bins_compared);
+                    b.GetBinError(xbin), options.scale_a, options.scale_b,
+                    options.min_entries_per_bin, chi2, result.max_abs_bin_diff,
+                    result.bins_compared, result.bins_skipped);
     }
 
     result.chi2_ndf = chi2;
@@ -221,15 +241,22 @@ HistoCompareResult compare_th2(const TH2 &a, const TH2 &b, const HistoCompareOpt
 
     apply_stats(result, th2_stats(a), th2_stats(b));
 
-    result.integral_a = a.Integral(1, a.GetNbinsX(), 1, a.GetNbinsY()) * options.scale_a;
-    result.integral_b = b.Integral(1, b.GetNbinsX(), 1, b.GetNbinsY()) * options.scale_b;
+    double error_a = 0.0;
+    double error_b = 0.0;
+    result.integral_a =
+        a.IntegralAndError(1, a.GetNbinsX(), 1, a.GetNbinsY(), error_a) * options.scale_a;
+    result.integral_b =
+        b.IntegralAndError(1, b.GetNbinsX(), 1, b.GetNbinsY(), error_b) * options.scale_b;
+    result.integral_sigma = integral_significance(result.integral_a, result.integral_b,
+                                                  error_a * options.scale_a, error_b * options.scale_b);
     double chi2 = 0.0;
 
     for (int xbin = 1; xbin <= a.GetNbinsX(); ++xbin) {
         for (int ybin = 1; ybin <= a.GetNbinsY(); ++ybin) {
             compare_bin(a.GetBinContent(xbin, ybin), b.GetBinContent(xbin, ybin),
                         a.GetBinError(xbin, ybin), b.GetBinError(xbin, ybin), options.scale_a,
-                        options.scale_b, chi2, result.max_abs_bin_diff, result.bins_compared);
+                        options.scale_b, options.min_entries_per_bin, chi2,
+                        result.max_abs_bin_diff, result.bins_compared, result.bins_skipped);
         }
     }
 
@@ -243,8 +270,10 @@ void print_compare_result(const HistoCompareResult &result, std::ostream &out)
     out << (result.passed ? "passed" : "failed") << "  " << result.name
         << "  chi2/ndf=" << std::setprecision(6) << result.chi2_ndf
         << "  rel_integral_diff=" << result.rel_integral_diff
+        << "  integral_sigma=" << result.integral_sigma
         << "  max_bin_diff=" << result.max_abs_bin_diff
         << "  ndf=" << result.bins_compared
+        << "  skipped_bins=" << result.bins_skipped
         << "  occ_bins=" << result.occupied_bins_a << "/" << result.occupied_bins_b
         << "  median_per_bin=" << result.median_per_bin_a << "/" << result.median_per_bin_b
         << "  (" << result.reason << ")\n";

@@ -11,9 +11,10 @@ Current subsystem support:
   region rows, a layer-wire occupancy map, and a comparison TDC PNG when comparing two files.
 - `ec`: reads `ECAL::adc` and `ECAL::tdc`. The EC system has hipo layers 4..9 (EC inner U/V/W = 4/5/6, EC
   outer U/V/W = 7/8/9), each with 36 components. It writes a 6x6 ADC matrix PNG and a 6x6 TDC matrix PNG for
-  the first EC layer (hipo layer 4, one pad per component), plus a component-vs-layer occupancy PNG with one
+  the first EC layer (hipo layer 4, one pad per component), plus a component-vs-layer hit-count PNG with one
   pad per sector. It also writes the ROOT histograms and, when comparing two files, 6x6 ADC/TDC comparison
-  grids and per-sector occupancy comparison maps.
+  grids and per-sector hit-count comparison maps. The 2D channel maps store raw hit counts (not occupancy
+  percentages) so the comparison runs on Poisson-distributed counts.
 
 Example:
 
@@ -70,11 +71,20 @@ Useful options:
 - `--max-chi2-ndf VALUE`: set the maximum bin-by-bin chi2 divided by the number of compared bins. Default: 5.0.
 - `--max-integral-diff VALUE`: set the maximum relative difference between the two histogram integrals. This
   tests total rate or occupancy independently of the bin-by-bin shape. Default: 0.05.
+- `--max-integral-sigma VALUE`: a relative integral difference is only treated as a failure when it is also
+  significant at more than `VALUE` Poisson sigma (`|Ia-Ib| / sqrt(errA^2 + errB^2)`, reported as
+  `integral_sigma`). This stops low-statistics histograms, where a handful of counts gives a large relative
+  swing, from failing on pure noise, while still catching genuine rate shifts in well-populated histograms.
+  Set negative to disable (relative-difference-only behavior). Default: 5.0.
+- `--min-chi2-bins N`: apply the chi2/ndf gate only when at least `N` bins survive the entries floor. With one
+  or two surviving bins a single outlier inflates chi2/ndf, so such histograms are not failed on chi2 alone.
+  Default: 3.
 - `--max-bin-diff VALUE`: set an optional maximum absolute difference in any single bin. This catches isolated
   bin excursions even when the global chi2 and integral checks pass. Default: disabled.
-- `--min-entries-per-bin VALUE`: fail a gated histogram whose median entries per occupied bin is below
-  `VALUE`. This is a statistical-soundness floor: it turns "not enough events were simulated" into an
-  explicit failure (bump the event count) instead of a misleading chi2 result. Default: disabled; CI uses 10.
+- `--min-entries-per-bin VALUE`: ignore bins with fewer than `VALUE` raw entries in the bin-by-bin
+  comparison. This is a statistical-soundness floor: low-statistics bins are dropped from the chi2 and
+  max-bin-diff checks (a bin is skipped when either histogram is below the floor) instead of producing a
+  misleading result. The number of skipped bins is reported as `skipped_bins`. Default: disabled; CI uses 10.
 - `--interactive`: show the ROOT canvases and keep the GUI open after writing output.
 - `--time-window NS`: simulated event time window in ns. The DC default is 250 ns.
 - `--no-plots`: write only the ROOT output file.

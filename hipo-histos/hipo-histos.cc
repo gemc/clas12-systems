@@ -41,8 +41,12 @@ void help()
         << "  --max-chi2-ndf VALUE   Diagnostic chi2/ndf limit. Default: 5.\n"
         << "  --max-integral-diff V  Diagnostic relative integral difference limit. Default: 0.05.\n"
         << "  --max-bin-diff VALUE   Optional diagnostic max absolute bin difference limit.\n"
-        << "  --min-entries-per-bin V Fail a gated histogram whose median entries per occupied\n"
-        << "                         bin is below V (statistical-soundness floor). Default: off.\n"
+        << "  --min-entries-per-bin V Ignore bins with fewer than V raw entries in the\n"
+        << "                         bin-by-bin comparison (statistical-soundness floor). Default: off.\n"
+        << "  --max-integral-sigma V Only count an integral difference as a failure when it is also\n"
+        << "                         significant at more than V Poisson sigma. Negative disables. Default: 5.\n"
+        << "  --min-chi2-bins N      Apply the chi2/ndf gate only when at least N bins survive the\n"
+        << "                         entries floor. Default: 3.\n"
         << "  -h, --help             Show this help.\n";
 }
 
@@ -103,6 +107,10 @@ RunOptions parse_args(int argc, char **argv)
             options.compare_options.max_abs_bin_diff = std::stod(require_value(i, argc, argv, arg));
         } else if (arg == "--min-entries-per-bin") {
             options.compare_options.min_entries_per_bin = std::stod(require_value(i, argc, argv, arg));
+        } else if (arg == "--max-integral-sigma") {
+            options.compare_options.max_integral_sigma = std::stod(require_value(i, argc, argv, arg));
+        } else if (arg == "--min-chi2-bins") {
+            options.compare_options.min_chi2_bins = std::stoi(require_value(i, argc, argv, arg));
         } else if (!arg.empty() && arg[0] == '-') {
             throw std::runtime_error("Unknown option: " + arg);
         } else {

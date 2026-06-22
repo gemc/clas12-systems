@@ -125,13 +125,18 @@ void draw_pad_label(const std::string &label)
 
 void draw_comparison_pad(const std::vector<TH1 *> &histos, const std::vector<std::string> &labels,
                          const std::string &pad_label, bool draw_legend,
-                         const bool *passed = nullptr)
+                         const bool *passed = nullptr, double shared_ymax = -1.0)
 {
     const std::array<int, 4> colors = {kBlack, kRed + 1, kBlue + 1, kGreen + 2};
     const std::array<int, 4> markers = {20, 24, 21, 25};
-    double ymax = 0.0;
-    for (auto *histo : histos) {
-        ymax = std::max(ymax, max_bin_content_with_error(histo));
+    // A non-negative shared_ymax pins every pad of a comparison canvas to the same vertical scale;
+    // otherwise fall back to a per-pad maximum.
+    double ymax = shared_ymax;
+    if (ymax < 0.0) {
+        ymax = 0.0;
+        for (auto *histo : histos) {
+            ymax = std::max(ymax, max_bin_content_with_error(histo));
+        }
     }
 
     bool drew_one = false;
@@ -729,6 +734,21 @@ void DCSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
     const double col_width = (canvas_right - canvas_left) / sectors;
     const double row_height = (canvas_top - canvas_bottom) / regions;
 
+    // First pass: find the largest bin (with error) across every region/sector and both files so
+    // all pads of this comparison canvas share a single vertical scale.
+    double shared_ymax = 0.0;
+    for (int region = 0; region < regions; ++region) {
+        for (int sector = 0; sector < sectors; ++sector) {
+            for (const auto *dc_histo : dc_histos) {
+                auto *tdc = dc_histo->tdc_histo(region, sector);
+                const double scale = (normalize && tdc != nullptr && dc_histo->events() > 0)
+                                         ? 1.0 / static_cast<double>(dc_histo->events())
+                                         : 1.0;
+                shared_ymax = std::max(shared_ymax, max_bin_content_with_error(tdc) * scale);
+            }
+        }
+    }
+
     for (int region = 0; region < regions; ++region) {
         for (int sector = 0; sector < sectors; ++sector) {
             canvas->cd();
@@ -770,7 +790,8 @@ void DCSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
             const bool passed = has_status && status->second;
             draw_comparison_pad(comparison, labels,
                                 "R" + std::to_string(region + 1) + " S" + std::to_string(sector + 1),
-                                region == 0 && sector == 0, has_status ? &passed : nullptr);
+                                region == 0 && sector == 0, has_status ? &passed : nullptr,
+                                shared_ymax);
         }
     }
 

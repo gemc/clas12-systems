@@ -2,13 +2,22 @@
 # prebuilt GEMC binary tarball.
 #
 # macOS has no Docker base image, so unlike the Linux Test/Binary Tarballs
-# pipeline this does NOT pull a ghcr.io/gemc/src image. Instead it consumes the
-# relocatable GEMC macOS tarball produced by gemc/src's "macOS GEMC Binary
-# Tarball" (macos_tarball) workflow: it unpacks that tarball, downloads the
-# Geant4 physics data it ships, then compiles and tests the CLAS12 systems
-# (plugins + geometry) exactly as the Linux container does. The resulting
-# install tree is repackaged into a second relocatable tarball that is attached
-# to this repository's rolling "dev" prerelease.
+# pipeline this does NOT pull a ghcr.io/gemc/src image. It consumes two
+# relocatable tarballs published to their projects' "dev" prereleases:
+#
+#   * gemc/g4install  "macos_tarball"  -> geant4-*-macosx*-arm64.tar.gz
+#       Bundles Geant4 + CLHEP + Xerces-C and a relocatable geant4.env. This
+#       supplies the Geant4 and CLHEP headers/libs (e.g. CLHEP::RandGauss used
+#       by the DC/EC digitization) and geant4-config, at the exact versions
+#       GEMC was built against.
+#   * gemc/src        "macos_tarball"  -> gemc-*-macosx*-arm64.tar.gz
+#       The GEMC install tree (libs, headers and gemc.pc / geant4_core.pc). GEMC
+#       links Geant4/CLHEP statically and ships no Geant4 or CLHEP headers, so
+#       the g4install tarball above provides them.
+#
+# It unpacks both, downloads the Geant4 physics data, then compiles and tests
+# the CLAS12 systems (plugins + geometry) and repackages the install tree into a
+# second relocatable tarball attached to this repository's "dev" prerelease.
 name: macOS CLAS12 Systems Tarball
 
 run-name: macOS CLAS12 systems tarball
@@ -36,18 +45,28 @@ on:
         description: 'Release tag holding the GEMC macOS tarball'
         required: false
         default: 'dev'
+      geant4_tarball_repo:
+        description: 'Repository hosting the Geant4 macOS tarball release'
+        required: false
+        default: 'gemc/g4install'
+      geant4_tarball_tag:
+        description: 'Release tag holding the Geant4 macOS tarball'
+        required: false
+        default: 'dev'
 
 jobs:
   build-tarball:
     name: clas12-systems macos arm64
     # macos-26 (Tahoe) is the latest macOS image; GitHub's macOS runners are
     # Apple Silicon (arm64). The package is tagged with this build host's
-    # OSRELEASE, matching the GEMC tarball it links against.
+    # OSRELEASE, matching the GEMC/Geant4 tarballs it links against.
     runs-on: macos-26
     env:
       TAG_NAME: dev
       GEMC_TARBALL_REPO: ${{ github.event.inputs.gemc_tarball_repo || 'gemc/src' }}
       GEMC_TARBALL_TAG: ${{ github.event.inputs.gemc_tarball_tag || 'dev' }}
+      GEANT4_TARBALL_REPO: ${{ github.event.inputs.geant4_tarball_repo || 'gemc/g4install' }}
+      GEANT4_TARBALL_TAG: ${{ github.event.inputs.geant4_tarball_tag || 'dev' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -66,49 +85,66 @@ jobs:
         run: |
           # meson/ninja/cmake + pkg-config drive the build; qt/root and
           # zlib/lz4/fmt/zstd/openssl are the libraries the plugins and the
-          # ccdb/hipo-cpp subprojects link against. XQuartz provides the X11/GL
+          # ccdb/hipo-cpp subprojects link against. CLHEP and Geant4 come from
+          # the g4install tarball, not Homebrew. XQuartz provides the X11/GL
           # runtime the GEMC tarball was built against.
           brew install meson ninja cmake pkg-config qt root zlib lz4 fmt zstd openssl
           # coatjava toolchain: Java, Maven, git-lfs (geometry LFS assets) and jq.
           brew install openjdk maven git-lfs jq
           brew install --cask xquartz
 
-      - name: Download the GEMC macOS tarball
+      - name: Download GEMC and Geant4 macOS tarballs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          dest="${RUNNER_TEMP}/gemc-download"
-          mkdir -p "${dest}"
+
+          g4dest="${RUNNER_TEMP}/geant4-download"
+          mkdir -p "${g4dest}"
+          gh release download "${GEANT4_TARBALL_TAG}" \
+            --repo "${GEANT4_TARBALL_REPO}" \
+            --pattern 'geant4-*-macosx*-arm64.tar.gz' \
+            --dir "${g4dest}"
+          echo "GEANT4_TARBALL=$(ls "${g4dest}"/geant4-*-macosx*-arm64.tar.gz | head -1)" >> "$GITHUB_ENV"
+
+          gemcdest="${RUNNER_TEMP}/gemc-download"
+          mkdir -p "${gemcdest}"
           gh release download "${GEMC_TARBALL_TAG}" \
             --repo "${GEMC_TARBALL_REPO}" \
             --pattern 'gemc-*-macosx*-arm64.tar.gz' \
-            --dir "${dest}"
-          tarball="$(ls "${dest}"/gemc-*-macosx*-arm64.tar.gz | head -1)"
-          echo "GEMC_TARBALL=${tarball}" >> "$GITHUB_ENV"
-          ls -l "${dest}"
+            --dir "${gemcdest}"
+          echo "GEMC_TARBALL=$(ls "${gemcdest}"/gemc-*-macosx*-arm64.tar.gz | head -1)" >> "$GITHUB_ENV"
 
-      - name: Unpack GEMC and install Geant4 data
+          ls -l "${g4dest}" "${gemcdest}"
+
+      - name: Unpack tarballs and install Geant4 data
         shell: bash
         run: |
           set -euo pipefail
+
+          # Geant4 + CLHEP + Xerces-C, with a relocatable geant4.env.
+          geant4_home="${RUNNER_TEMP}/geant4"
+          mkdir -p "${geant4_home}"
+          tar -xzf "${GEANT4_TARBALL}" -C "${geant4_home}" --strip-components=1
+          # Download the Geant4 physics data so sourcing geant4.env succeeds.
+          "${geant4_home}/install_geant4_data.sh"
+          echo "GEANT4_HOME=${geant4_home}" >> "$GITHUB_ENV"
+
+          # GEMC install tree. Do NOT run its install_geant4_data.sh / source its
+          # gemc.env: the Geant4 data and G4*DATA come from the g4install tarball
+          # above, and gemc.env would otherwise point G4*DATA at an empty dir.
           gemc_home="${RUNNER_TEMP}/gemc"
           mkdir -p "${gemc_home}"
           tar -xzf "${GEMC_TARBALL}" -C "${gemc_home}" --strip-components=1
-          # Download the Geant4 physics data into the tarball's geant4-data dir
-          # (gemc.env points the G4*DATA variables there).
-          "${gemc_home}/install_geant4_data.sh"
           echo "GEMC_HOME=${gemc_home}" >> "$GITHUB_ENV"
 
       - name: Set up coatjava
         shell: bash
-        env:
-          # Homebrew's openjdk is keg-only; expose it so java/javac/maven resolve
-          # and ci/install_coatjava_deps.sh short-circuits (no apt/dnf on macOS).
-          JAVA_HOME_OVERRIDE: "1"
         run: |
           set -euo pipefail
+          # Homebrew's openjdk is keg-only; expose it so java/javac/maven resolve
+          # and ci/install_coatjava_deps.sh short-circuits (no apt/dnf on macOS).
           export JAVA_HOME="$(brew --prefix openjdk)"
           export PATH="${JAVA_HOME}/bin:$(brew --prefix git-lfs)/bin:${PATH}"
           ./ci/setup_coatjava.sh
@@ -119,21 +155,51 @@ jobs:
         run: |
           set -e
 
-          # --- Activate the relocated GEMC + Geant4 stack -------------------
-          # gemc.env exports GEMC_HOME, prepends bin to PATH (so the binary-prefix
-          # fallback in meson/meson.build finds gemc) and sets the G4*DATA vars.
-          export GEMC_HOME="${GEMC_HOME}"
-          source "${GEMC_HOME}/gemc.env"
+          # --- Activate the relocated Geant4 + CLHEP stack ------------------
+          # geant4.env derives all paths from GEANT4_HOME: it puts geant4-config
+          # on PATH and exports CLHEP_BASE_DIR / XERCESCROOT and the G4*DATA vars.
+          export GEANT4_HOME="${GEANT4_HOME}"
+          source "${GEANT4_HOME}/geant4.env"
+
+          # --- Relocate the GEMC tarball's pkg-config files -----------------
+          # The GEMC tarball's .pc files embed absolute paths from the runner
+          # that built GEMC, so they must be rewritten for THIS runner:
+          #
+          #   * gemc.pc       prefix -> GEMC_HOME. meson/meson.build's
+          #     binary-prefix fallback reads gemc.pc's own prefix= to form the
+          #     -L<libdir> it links GEMC's static libs from, so a stale prefix
+          #     breaks the link even on the fallback path.
+          #   * geant4_core.pc / geant4.pc  (the only geant4_core.pc anywhere;
+          #     the Geant4 tarball ships none) hold paths under the GEANT4_HOME
+          #     of the GEMC build runner. Geant4, CLHEP and Xerces-C all live
+          #     under that one root, so rewriting it to OUR GEANT4_HOME fixes
+          #     the include and library paths in a single pass.
+          pcdir="${GEMC_HOME}/lib/pkgconfig"
+
+          gemc_pc="${pcdir}/gemc.pc"
+          old_gemc_prefix="$(sed -n 's/^prefix=//p' "${gemc_pc}" | head -1)"
+          sed -i '' "s|${old_gemc_prefix}|${GEMC_HOME}|g" "${gemc_pc}"
+
+          for pc in geant4_core.pc geant4.pc; do
+            f="${pcdir}/${pc}"
+            [[ -f "${f}" ]] || continue
+            old_prefix="$(sed -n 's/^prefix=//p' "${f}" | head -1)"
+            old_geant4_home="$(dirname "$(dirname "${old_prefix}")")"
+            sed -i '' "s|${old_geant4_home}|${GEANT4_HOME}|g" "${f}"
+          done
 
           # --- Compose the build environment --------------------------------
-          # GEMC's, Geant4's and CLHEP's .pc files live in the tarball's
-          # lib/pkgconfig; the plugins resolve gemc/geant4_core/clhep from there.
-          # Homebrew's qt/zlib are keg-only, so add their .pc dirs too.
+          # gemc.pc / geant4_core.pc come from the GEMC tarball; clhep.pc and
+          # xerces come from the relocated Geant4 tarball. Homebrew's qt/zlib are
+          # keg-only, so add their .pc dirs too.
           export PKG_CONFIG_PATH="${GEMC_HOME}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          export PKG_CONFIG_PATH="${CLHEP_BASE_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+          export PKG_CONFIG_PATH="${XERCESCROOT}/lib/pkgconfig:${PKG_CONFIG_PATH}"
           for f in qt zlib; do
             export PKG_CONFIG_PATH="$(brew --prefix ${f})/lib/pkgconfig:${PKG_CONFIG_PATH}"
           done
-          export PATH="$(brew --prefix qt)/bin:${PATH}"
+          # gemc on PATH (binary-prefix fallback in meson/meson.build) and qt bin.
+          export PATH="${GEMC_HOME}/bin:$(brew --prefix qt)/bin:${PATH}"
 
           # coatjava toolchain.
           export JAVA_HOME="$(brew --prefix openjdk)"
@@ -143,18 +209,16 @@ jobs:
           # rootcling/root-config are found and the hipo-cpp ROOT tools link.
           source "$(brew --prefix root)/bin/thisroot.sh"
 
-          # The GEMC tarball is statically linked against Geant4 and ships no
-          # geant4-config; the Geant4 version comes from its geant4_core.pc,
-          # resolved through the PKG_CONFIG_PATH set above.
-          g4ver="$(pkg-config --modversion geant4_core)"
-          echo " > gemc        : $(command -v gemc) ($(gemc -v 2>/dev/null | head -1))"
-          echo " > geant4_core : ${g4ver} (from geant4_core.pc)"
+          echo " > gemc        : $(command -v gemc)"
+          echo " > geant4-config: $(command -v geant4-config) ($(geant4-config --version))"
+          echo " > clhep       : ${CLHEP_BASE_DIR}"
           echo " > root-config : $(command -v root-config) ($(root-config --version))"
           echo " > javac       : $(command -v javac)"
 
           # --- Resolve the package version tag ------------------------------
           # Mirror gemc/src's osrelease: macosx<major>-clang<major>-<arch>, and
           # tag the package with the Geant4 the GEMC tarball was built against.
+          g4ver="$(geant4-config --version)"
           mac_major="$(sw_vers -productVersion | cut -d. -f1)"
           clang_major="$(clang --version | sed -nE 's/.*clang version ([0-9]+).*/\1/p' | head -1)"
           osrelease="macosx${mac_major}-clang${clang_major}-arm64"

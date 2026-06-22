@@ -22,7 +22,8 @@ binary_maps = [
     'Full_torus_r251_phi181_z251_08May2018',
     'Full_transsolenoid_x321_y161_z321_March2021_April2024',
 ]
-ascii_maps = ['TorusSymmetric', 'clas12NewSolenoidFieldMap']
+ascii_maps = []
+#ascii_maps = ['TorusSymmetric', 'clas12NewSolenoidFieldMap']
 
 
 def required() -> bool:

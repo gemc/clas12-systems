@@ -8,6 +8,6 @@
 clas12_plugins += [{
     'name'                : 'gfieldclas12binFactory',
     'sources'             : files('gfield_clas12bin.cc'),
-    'dependencies'        : [gemc_dep, clas12_cmag_dep, clhep_deps, geant4_core_deps],
+    'dependencies'        : [gemc_dep, clas12_cmag_dep],
     'include_directories' : [include_directories('.')],
 }]

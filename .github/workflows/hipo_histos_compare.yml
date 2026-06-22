@@ -53,7 +53,7 @@ jobs:
           - system: dc
             n_events: 10000
           - system: ec
-            n_events: 1000
+            n_events: 10000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6

@@ -85,10 +85,11 @@ jobs:
         run: |
           # meson/ninja/cmake + pkg-config drive the build; qt/root and
           # zlib/lz4/fmt/zstd/openssl are the libraries the plugins and the
-          # ccdb/hipo-cpp subprojects link against. CLHEP and Geant4 come from
-          # the g4install tarball, not Homebrew. XQuartz provides the X11/GL
-          # runtime the GEMC tarball was built against.
-          brew install meson ninja cmake pkg-config qt root zlib lz4 fmt zstd openssl
+          # ccdb/hipo-cpp subprojects link against. mysql-client satisfies ccdb's
+          # unconditional MySQL dependency (FindMySQL via mysql_config). CLHEP and
+          # Geant4 come from the g4install tarball, not Homebrew. XQuartz provides
+          # the X11/GL runtime the GEMC tarball was built against.
+          brew install meson ninja cmake pkg-config qt root zlib lz4 fmt zstd openssl mysql-client
           # coatjava toolchain: Java, Maven, git-lfs (geometry LFS assets) and jq.
           brew install openjdk maven git-lfs jq
           brew install --cask xquartz

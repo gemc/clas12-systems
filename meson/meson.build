@@ -174,6 +174,11 @@ if sys == 'darwin'
     if brew.found()
         zstd_prefix = run_command(brew, '--prefix', 'zstd', check : false).stdout().strip()
         openssl_prefix = run_command(brew, '--prefix', 'openssl', check : false).stdout().strip()
+        # ccdb's src/CMakeLists.txt unconditionally enables MySQL (-DCCDB_MYSQL) via FindMySQL.cmake,
+        # which has no system MySQL to find on a bare macOS host. Homebrew's mysql-client is keg-only,
+        # so point FindMySQL at it through MYSQL_DIR: it locates ${MYSQL_DIR}/bin/mysql_config and
+        # derives the include/lib flags from it (no need to hardcode the libmysqlclient path/name).
+        mysql_prefix = run_command(brew, '--prefix', 'mysql-client', check : false).stdout().strip()
 
         if zstd_prefix != ''
             cmake_opts.append_link_args('-L' + zstd_prefix / 'lib')
@@ -183,6 +188,11 @@ if sys == 'darwin'
         if openssl_prefix != ''
             cmake_opts.append_link_args('-L' + openssl_prefix / 'lib')
             message('Using openssl lib dir: ' + openssl_prefix / 'lib')
+        endif
+
+        if mysql_prefix != '' and fs.is_dir(mysql_prefix)
+            cmake_opts.add_cmake_defines({'MYSQL_DIR' : mysql_prefix})
+            message('Using mysql-client prefix: ' + mysql_prefix)
         endif
     endif
 endif

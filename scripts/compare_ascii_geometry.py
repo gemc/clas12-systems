@@ -29,6 +29,27 @@ GEOMETRY_FIELDS = (
 )
 # Values used by either schema to mean "no digitization / no identifier".
 EMPTY_TOKENS = {"", "no", "none", "null"}
+# GEMC2 (clas12Tags) names solids by a short alias; pygemc emits the Geant4 class name.
+# Map the GEMC2 aliases onto their Geant4 classes so the two schemas compare equal.
+# Aliases taken from clas12Tags source/detector/detector.cc. Names already carrying the
+# ``G4`` prefix (e.g. ``G4Trap``) pass through unchanged.
+SOLID_NAME_MAP = {
+    "Box": "G4Box",
+    "Parallelepiped": "G4Para",
+    "Sphere": "G4Sphere",
+    "Ellipsoid": "G4Ellipsoid",
+    "Paraboloid": "G4Paraboloid",
+    "Hype": "G4Hype",
+    "Tube": "G4Tubs",
+    "CTube": "G4CutTubs",
+    "EllipticalTube": "G4EllipticalTube",
+    "Eltu": "G4EllipticalTube",
+    "Cons": "G4Cons",
+    "Torus": "G4Torus",
+    "Trd": "G4Trd",
+    "Pgon": "G4Polyhedra",
+    "Polycone": "G4Polycone",
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -80,6 +101,17 @@ def discover_systems() -> list[str]:
 
 def normalize_field(value: str) -> str:
     return " ".join(value.replace(",", " ").split())
+
+
+def normalize_solid(value: str) -> str:
+    """Canonicalize a solid type name to its Geant4 class name.
+
+    GEMC2 uses short aliases ("Box", "Trd", ...) while pygemc emits the Geant4 class
+    ("G4Box", "G4Trd", ...). Map aliases through :data:`SOLID_NAME_MAP`; anything already
+    using a Geant4 name (or unknown) is returned unchanged.
+    """
+    text = normalize_field(value)
+    return SOLID_NAME_MAP.get(text, text)
 
 
 def normalize_digitization(value: str) -> str:
@@ -149,7 +181,7 @@ def old_geometry_record(row: list[str]) -> dict[str, str]:
         "description": normalize_field(row[2]),
         "position": normalize_field(row[3]),
         "rotation": normalize_field(row[4]),
-        "solid": normalize_field(row[6]),
+        "solid": normalize_solid(row[6]),
         "dimensions": normalize_field(row[7]),
         "material": normalize_field(row[8]),
         "digitization": normalize_digitization(row[15]),
@@ -164,7 +196,7 @@ def new_geometry_record(row: list[str]) -> dict[str, str]:
         "description": normalize_field(row[19]),
         "position": normalize_field(row[5]),
         "rotation": normalize_field(row[6]),
-        "solid": normalize_field(row[1]),
+        "solid": normalize_solid(row[1]),
         "dimensions": normalize_field(row[2]),
         "material": normalize_field(row[3]),
         "digitization": normalize_digitization(row[13]),

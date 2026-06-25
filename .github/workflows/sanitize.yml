@@ -57,6 +57,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover.outputs.matrix_sanitize) }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
     container:
       image: ${{ matrix.gemc_image }}
 
@@ -93,7 +94,8 @@ jobs:
           mkdir -p "$outdir"
 
           if [[ -d "$src" ]]; then
-            tar -C "$GITHUB_WORKSPACE" -czf "$outdir/logs-${{ matrix.label }}-${{ matrix.sanitizer }}.tgz" "logs"
+            tarball="$outdir/logs-${{ matrix.label }}-${{ matrix.sanitizer }}.tgz"
+            tar -C "$GITHUB_WORKSPACE" -czf "$tarball" "logs"
             echo "Packaged logs from $src"
           else
             echo "No logs directory at $src"

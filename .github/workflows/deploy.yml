@@ -81,6 +81,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover.outputs.matrix_build) }}
@@ -190,6 +191,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover.outputs.matrix_manifest) }}

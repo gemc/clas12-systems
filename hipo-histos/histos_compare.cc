@@ -43,6 +43,11 @@ double integral_significance(double a, double b, double error_a, double error_b)
     return std::abs(a - b) / std::sqrt(variance);
 }
 
+bool passes_entries_floor(double value_a, double value_b, double min_entries_per_bin)
+{
+    return min_entries_per_bin < 0.0 || std::min(value_a, value_b) >= min_entries_per_bin;
+}
+
 double median_of(std::vector<double> values)
 {
     if (values.empty()) {
@@ -152,14 +157,15 @@ std::string fail_reason(const HistoCompareResult &result, const HistoCompareOpti
 }
 
 void compare_bin(double value_a, double value_b, double error_a, double error_b, double scale_a,
-                 double scale_b, double min_entries_per_bin, double &chi2, double &max_abs_bin_diff,
-                 int &bins_compared, int &bins_skipped)
+                 double scale_b, double min_entries_per_bin, double &chi2, double &integral_a,
+                 double &integral_b, double &integral_error2_a, double &integral_error2_b,
+                 double &max_abs_bin_diff, int &bins_compared, int &bins_skipped)
 {
     // When a minimum is configured, ignore bins that do not have enough raw entries for the
     // comparison to be statistically meaningful. The threshold is applied on the unscaled
     // contents (before normalization) and, matching the "worst of the two" philosophy, a bin is
     // skipped when either histogram falls below the floor.
-    if (min_entries_per_bin >= 0.0 && std::min(value_a, value_b) < min_entries_per_bin) {
+    if (!passes_entries_floor(value_a, value_b, min_entries_per_bin)) {
         ++bins_skipped;
         return;
     }
@@ -169,6 +175,11 @@ void compare_bin(double value_a, double value_b, double error_a, double error_b,
     const double scaled_error_a = error_a * scale_a;
     const double scaled_error_b = error_b * scale_b;
     const double diff = scaled_a - scaled_b;
+
+    integral_a += scaled_a;
+    integral_b += scaled_b;
+    integral_error2_a += scaled_error_a * scaled_error_a;
+    integral_error2_b += scaled_error_b * scaled_error_b;
 
     // Prefer explicit ROOT bin errors when available. For DC z-vertex and occupancy histograms those errors are
     // event-level standard errors, so this keeps the diagnostic test aligned with the plotted uncertainties.
@@ -209,21 +220,21 @@ HistoCompareResult compare_th1(const TH1 &a, const TH1 &b, const HistoCompareOpt
 
     apply_stats(result, th1_stats(a), th1_stats(b));
 
-    double error_a = 0.0;
-    double error_b = 0.0;
-    result.integral_a = a.IntegralAndError(1, a.GetNbinsX(), error_a) * options.scale_a;
-    result.integral_b = b.IntegralAndError(1, b.GetNbinsX(), error_b) * options.scale_b;
-    result.integral_sigma = integral_significance(result.integral_a, result.integral_b,
-                                                  error_a * options.scale_a, error_b * options.scale_b);
     double chi2 = 0.0;
+    double integral_error2_a = 0.0;
+    double integral_error2_b = 0.0;
 
     for (int xbin = 1; xbin <= a.GetNbinsX(); ++xbin) {
         compare_bin(a.GetBinContent(xbin), b.GetBinContent(xbin), a.GetBinError(xbin),
                     b.GetBinError(xbin), options.scale_a, options.scale_b,
-                    options.min_entries_per_bin, chi2, result.max_abs_bin_diff,
+                    options.min_entries_per_bin, chi2, result.integral_a, result.integral_b,
+                    integral_error2_a, integral_error2_b, result.max_abs_bin_diff,
                     result.bins_compared, result.bins_skipped);
     }
 
+    result.integral_sigma = integral_significance(result.integral_a, result.integral_b,
+                                                  std::sqrt(integral_error2_a),
+                                                  std::sqrt(integral_error2_b));
     result.chi2_ndf = chi2;
     finish_result(result, options);
     return result;
@@ -241,25 +252,24 @@ HistoCompareResult compare_th2(const TH2 &a, const TH2 &b, const HistoCompareOpt
 
     apply_stats(result, th2_stats(a), th2_stats(b));
 
-    double error_a = 0.0;
-    double error_b = 0.0;
-    result.integral_a =
-        a.IntegralAndError(1, a.GetNbinsX(), 1, a.GetNbinsY(), error_a) * options.scale_a;
-    result.integral_b =
-        b.IntegralAndError(1, b.GetNbinsX(), 1, b.GetNbinsY(), error_b) * options.scale_b;
-    result.integral_sigma = integral_significance(result.integral_a, result.integral_b,
-                                                  error_a * options.scale_a, error_b * options.scale_b);
     double chi2 = 0.0;
+    double integral_error2_a = 0.0;
+    double integral_error2_b = 0.0;
 
     for (int xbin = 1; xbin <= a.GetNbinsX(); ++xbin) {
         for (int ybin = 1; ybin <= a.GetNbinsY(); ++ybin) {
             compare_bin(a.GetBinContent(xbin, ybin), b.GetBinContent(xbin, ybin),
                         a.GetBinError(xbin, ybin), b.GetBinError(xbin, ybin), options.scale_a,
                         options.scale_b, options.min_entries_per_bin, chi2,
-                        result.max_abs_bin_diff, result.bins_compared, result.bins_skipped);
+                        result.integral_a, result.integral_b, integral_error2_a,
+                        integral_error2_b, result.max_abs_bin_diff, result.bins_compared,
+                        result.bins_skipped);
         }
     }
 
+    result.integral_sigma = integral_significance(result.integral_a, result.integral_b,
+                                                  std::sqrt(integral_error2_a),
+                                                  std::sqrt(integral_error2_b));
     result.chi2_ndf = chi2;
     finish_result(result, options);
     return result;

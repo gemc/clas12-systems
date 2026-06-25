@@ -33,31 +33,69 @@ double max_bin_content_with_error(const TH1 *histo)
     return ymax;
 }
 
-std::unique_ptr<TH2> make_ratio_2d(const TH2 *first, const TH2 *second,
-                                   const std::string &name)
+bool passes_entries_floor(const TH2 *first_gate, const TH2 *second_gate, int xbin, int ybin,
+                          double min_entries_per_bin)
+{
+    if (min_entries_per_bin < 0.0 || first_gate == nullptr || second_gate == nullptr) {
+        return true;
+    }
+
+    return std::min(first_gate->GetBinContent(xbin, ybin), second_gate->GetBinContent(xbin, ybin)) >=
+           min_entries_per_bin;
+}
+
+std::unique_ptr<TH2> make_masked_2d(const TH2 *source, const TH2 *first_gate, const TH2 *second_gate,
+                                    const std::string &name, double min_entries_per_bin)
+{
+    if (source == nullptr) {
+        return nullptr;
+    }
+
+    auto masked = std::unique_ptr<TH2>(static_cast<TH2 *>(source->Clone(name.c_str())));
+    masked->SetDirectory(nullptr);
+    if (min_entries_per_bin < 0.0 || first_gate == nullptr || second_gate == nullptr) {
+        return masked;
+    }
+
+    for (int xbin = 1; xbin <= source->GetNbinsX(); ++xbin) {
+        for (int ybin = 1; ybin <= source->GetNbinsY(); ++ybin) {
+            if (passes_entries_floor(first_gate, second_gate, xbin, ybin, min_entries_per_bin)) {
+                continue;
+            }
+            masked->SetBinContent(xbin, ybin, 0.0);
+            masked->SetBinError(xbin, ybin, 0.0);
+        }
+    }
+
+    return masked;
+}
+
+std::unique_ptr<TH2> make_asymmetry_2d(const TH2 *first, const TH2 *second,
+                                       const std::string &name)
 {
     if (first == nullptr || second == nullptr) {
         return nullptr;
     }
 
-    auto ratio = std::unique_ptr<TH2>(static_cast<TH2 *>(second->Clone(name.c_str())));
-    ratio->SetDirectory(nullptr);
-    ratio->Reset("ICES");
+    auto asymmetry = std::unique_ptr<TH2>(static_cast<TH2 *>(first->Clone(name.c_str())));
+    asymmetry->SetDirectory(nullptr);
+    asymmetry->Reset("ICES");
 
     for (int xbin = 1; xbin <= first->GetNbinsX(); ++xbin) {
         for (int ybin = 1; ybin <= first->GetNbinsY(); ++ybin) {
-            const double denominator = first->GetBinContent(xbin, ybin);
-            const double numerator = second->GetBinContent(xbin, ybin);
-            if (denominator <= 0.0) {
-                ratio->SetBinContent(xbin, ybin, 0.0);
-                ratio->SetBinError(xbin, ybin, 0.0);
+            const double value_first = first->GetBinContent(xbin, ybin);
+            const double value_second = second->GetBinContent(xbin, ybin);
+            const double sum = value_first + value_second;
+            if (sum <= 0.0) {
+                asymmetry->SetBinContent(xbin, ybin, 0.0);
+                asymmetry->SetBinError(xbin, ybin, 0.0);
                 continue;
             }
-            ratio->SetBinContent(xbin, ybin, numerator / denominator);
+            asymmetry->SetBinContent(xbin, ybin, 2.0 * (value_first - value_second) / sum);
         }
     }
 
-    return ratio;
+    return asymmetry;
 }
 
 void draw_2d_pad(TH2 *histo, const std::string &label)
@@ -252,36 +290,47 @@ void draw_2d(TH2 *histo, const std::string &title, const std::string &output_pat
 
 void draw_2d_comparison(TH2 *first, TH2 *second, const std::vector<std::string> &labels,
                         const std::string &title, const std::string &output_path,
-                        const std::string &header, bool has_status, bool passed)
+                        const std::string &header, bool has_status, bool passed,
+                        double min_entries_per_bin, const TH2 *first_gate, const TH2 *second_gate)
 {
     if (first == nullptr || second == nullptr || labels.size() < 2) {
         return;
     }
 
-    auto ratio = make_ratio_2d(first, second, "ratio_" + sanitize_root_name(title));
-    if (ratio == nullptr) {
+    const TH2 *gate_first = first_gate != nullptr ? first_gate : first;
+    const TH2 *gate_second = second_gate != nullptr ? second_gate : second;
+    auto first_display = make_masked_2d(first, gate_first, gate_second,
+                                        "masked_first_" + sanitize_root_name(title),
+                                        min_entries_per_bin);
+    auto second_display = make_masked_2d(second, gate_first, gate_second,
+                                         "masked_second_" + sanitize_root_name(title),
+                                         min_entries_per_bin);
+    auto asymmetry = make_asymmetry_2d(first_display.get(), second_display.get(),
+                                       "asymmetry_" + sanitize_root_name(title));
+    if (asymmetry == nullptr) {
         return;
     }
 
-    ratio->SetTitle((labels[1] + " / " + labels[0]).c_str());
-    ratio->GetZaxis()->SetTitle((labels[1] + " / " + labels[0]).c_str());
-    ratio->SetMinimum(0.0);
-    ratio->SetMaximum(2.0);
+    const std::string asymmetry_label = "2*(" + labels[0] + " - " + labels[1] + ")/sum";
+    asymmetry->SetTitle(asymmetry_label.c_str());
+    asymmetry->GetZaxis()->SetTitle(asymmetry_label.c_str());
+    asymmetry->SetMinimum(-2.0);
+    asymmetry->SetMaximum(2.0);
 
     auto canvas = make_canvas("c_" + sanitize_root_name(output_path), title, 1800, 620);
     canvas->Divide(3, 1, 0.001, 0.001);
 
     canvas->cd(1);
-    draw_2d_pad(first, labels[0]);
+    draw_2d_pad(first_display.get(), labels[0]);
 
     canvas->cd(2);
-    draw_2d_pad(second, labels[1]);
+    draw_2d_pad(second_display.get(), labels[1]);
     if (has_status) {
         draw_status_label(passed);
     }
 
     canvas->cd(3);
-    draw_2d_pad(ratio.get(), labels[1] + " / " + labels[0]);
+    draw_2d_pad(asymmetry.get(), asymmetry_label);
 
     draw_canvas_header(canvas, header);
     canvas->SaveAs(output_path.c_str());

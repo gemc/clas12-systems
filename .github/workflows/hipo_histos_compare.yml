@@ -3,13 +3,13 @@
 #
 # For each system the job:
 #   1. builds + installs this repo (ci/build.sh also generates build/clas12.db and hipo-histos),
-#   2. runs GEMC3 once for n_events with the system's committed yaml (gun comes from the yaml, unchanged),
+#   2. runs GEMC3 twice for n_events with the system's committed yaml: once with field and once with
+#      -no_field=all (gun comes from the yaml, unchanged),
 #   3. downloads the latest clas12Tags reference HIPOs — both <system>_reference.hipo (field) and
 #      <system>_reference_nofield.hipo (no field); always latest, see hipo_reference.yml there,
-#   4. runs hipo-histos --compare-system against each reference. The job is gated on the nofield
-#      comparison (it fails only when GEMC3 vs <system>_reference_nofield.hipo fails); the field
-#      comparison is reported in the summary but does not fail the job (to be revisited with a
-#      dedicated gemc nofield run).
+#   4. runs hipo-histos --compare-system against each matching reference/output pair. The job is gated on
+#      the nofield comparison (it fails only when GEMC3 no-field vs <system>_reference_nofield.hipo fails);
+#      the field comparison is reported in the summary but does not fail the job.
 #
 # n_events is part of the matrix and is reported in the run metrics. DC uses 10,000 events.
 name: HIPO Histos Comparison
@@ -34,6 +34,8 @@ on:
       - "geometry_src/**"
       - "plugins/hipo/**"
       - "hipo-histos/**"
+      - "meson.build"
+      - "meson/**"
       - ".github/workflows/hipo_histos_compare.yml"
   push:
     branches: [ main ]
@@ -41,6 +43,8 @@ on:
       - "geometry_src/**"
       - "plugins/hipo/**"
       - "hipo-histos/**"
+      - "meson.build"
+      - "meson/**"
       - ".github/workflows/hipo_histos_compare.yml"
   workflow_dispatch:
 
@@ -57,6 +61,10 @@ jobs:
           - system: dc
             n_events: 10000
           - system: ec
+            n_events: 10000
+          - system: ftof
+            n_events: 10000
+          - system: pcal
             n_events: 10000
     steps:
       - name: Checkout repository
@@ -133,17 +141,26 @@ jobs:
           cd "$workdir"
           # GEMC3 GOptions take CLI overrides as -key=value (a bare -key is parsed as an
           # unknown switch). n = number of events, sql = geometry database path.
-          gemc "${{ matrix.system }}.yaml" \
-            -n="${{ matrix.n_events }}" \
-            -sql="$GITHUB_WORKSPACE/build/clas12.db"
-          # The hipo gstreamer writes <filename>.hipo (this system's yaml uses <system>_t0).
-          # If the hipo is missing, list what was produced — a duplicate gstreamer output
-          # name in the yaml (csv and hipo sharing a filename) can drop the hipo stream.
-          ls -l "${{ matrix.system }}_t0.hipo" || {
-            echo "ERROR: ${{ matrix.system }}_t0.hipo not found. Produced files:" >&2
-            ls -l ./*.hipo 2>/dev/null || ls -l
-            exit 1
+          run_gemc_variant() {
+            local variant="$1"
+            shift
+            gemc "${{ matrix.system }}.yaml" \
+              -n="${{ matrix.n_events }}" \
+              -sql="$GITHUB_WORKSPACE/build/clas12.db" \
+              "$@"
+            # The hipo gstreamer writes <filename>.hipo (this system's yaml uses <system>_t0).
+            # If the hipo is missing, list what was produced — a duplicate gstreamer output
+            # name in the yaml (csv and hipo sharing a filename) can drop the hipo stream.
+            ls -l "${{ matrix.system }}_t0.hipo" || {
+              echo "ERROR: ${{ matrix.system }}_t0.hipo not found. Produced files:" >&2
+              ls -l ./*.hipo 2>/dev/null || ls -l
+              exit 1
+            }
+            mv "${{ matrix.system }}_t0.hipo" "$GITHUB_WORKSPACE/${{ matrix.system }}_${variant}.hipo"
           }
+
+          run_gemc_variant field
+          run_gemc_variant nofield -no_field=all
 
       - name: Compare against references
         id: compare
@@ -151,9 +168,8 @@ jobs:
         run: |
           set -euo pipefail
           hipo_histos="$PWD/install/bin/hipo-histos"
-          gemc3_hipo="$PWD/geometry_src/${{ matrix.system }}/${{ matrix.system }}_t0.hipo"
 
-          # Compare the single GEMC3 output against both clas12Tags references (field and
+          # Compare each GEMC3 output against the matching clas12Tags reference (field and
           # nofield). Each variant gets its own output dir, log and per-variant exit status.
           # Write outputs inside the workspace: in a container job $RUNNER_TEMP (/__w/_temp)
           # and the runner.temp expression (/home/runner/work/_temp) differ, so artifacts
@@ -161,6 +177,7 @@ jobs:
           for variant in field nofield; do
             suffix=""; [[ "$variant" == nofield ]] && suffix="_nofield"
             ref="$RUNNER_TEMP/reference${suffix}.hipo"
+            gemc3_hipo="$PWD/${{ matrix.system }}_${variant}.hipo"
             out_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare_${variant}"
             mkdir -p "$out_dir/plots"
 
@@ -208,6 +225,8 @@ jobs:
 
           nofield_status="${{ steps.compare.outputs.nofield_status }}"
           field_status="${{ steps.compare.outputs.field_status }}"
+          field_reference="$(head -n1 "$RUNNER_TEMP/reference.txt" 2>/dev/null || echo unknown)"
+          nofield_reference="$(head -n1 "$RUNNER_TEMP/reference_nofield.txt" 2>/dev/null || echo unknown)"
           {
             echo "### HIPO Histos Comparison — ${{ matrix.system }}"
             echo
@@ -215,15 +234,20 @@ jobs:
             echo "| --- | --- |"
             echo "| System | ${{ matrix.system }} |"
             echo "| Events simulated | ${{ matrix.n_events }} |"
-            echo "| Reference (field) | $(head -n1 "$RUNNER_TEMP/reference.txt" 2>/dev/null || echo unknown) |"
-            echo "| Reference (nofield) | $(head -n1 "$RUNNER_TEMP/reference_nofield.txt" 2>/dev/null || echo unknown) |"
+            echo "| Reference (field) | $field_reference |"
+            echo "| Reference (nofield) | $nofield_reference |"
             echo "| Result vs nofield (gating) | $(result_icon "$nofield_status") |"
             echo "| Result vs field (informational) | $(result_icon "$field_status") |"
             echo
             for variant in nofield field; do
               label="vs ${variant} reference"
-              [[ "$variant" == nofield ]] && label="$label — gates the job" || label="$label — informational"
-              echo "<details><summary>Per-histogram diagnostics ${label} (chi2/ndf, occupied bins, median entries/bin)</summary>"
+              if [[ "$variant" == nofield ]]; then
+                label="$label — gates the job"
+              else
+                label="$label — informational"
+              fi
+              echo "<details><summary>Per-histogram diagnostics ${label}"
+              echo "(chi2/ndf, occupied bins, median entries/bin)</summary>"
               echo
               render_diag "$GITHUB_WORKSPACE/${{ matrix.system }}_compare_${variant}/compare.log"
               echo

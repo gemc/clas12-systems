@@ -79,6 +79,7 @@ void draw_2d(TH2 *histo, const std::string &title, const std::string &output_pat
 void draw_2d_comparison(TH2 *first, TH2 *second, const std::vector<std::string> &labels,
                         const std::string &title, const std::string &output_path,
                         const std::string &header = "", bool has_status = false,
-                        bool passed = false);
+                        bool passed = false, double min_entries_per_bin = -1.0,
+                        const TH2 *first_gate = nullptr, const TH2 *second_gate = nullptr);
 
 #endif

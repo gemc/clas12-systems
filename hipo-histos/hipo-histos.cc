@@ -24,7 +24,7 @@ void help()
         << "       hipo-histos [options] --compare-system <subsystem> <file1.hipo> <file2.hipo>\n"
         << "\n"
         << "Options:\n"
-        << "  --subsystem NAME       Subsystem to analyze. Currently supported: dc, ec.\n"
+        << "  --subsystem NAME       Subsystem to analyze. Currently supported: dc, ec, ftof, pcal.\n"
         << "  --compare-system NAME  Compare this subsystem using exactly two HIPO files.\n"
         << "  -o, --output FILE      ROOT output file. Default: hipo-histos.root.\n"
         << "  --plot-dir DIR         Directory for plots. Default: hipo-histos-plots.\n"
@@ -41,8 +41,8 @@ void help()
         << "  --max-chi2-ndf VALUE   Diagnostic chi2/ndf limit. Default: 5.\n"
         << "  --max-integral-diff V  Diagnostic relative integral difference limit. Default: 0.05.\n"
         << "  --max-bin-diff VALUE   Optional diagnostic max absolute bin difference limit.\n"
-        << "  --min-entries-per-bin V Ignore bins with fewer than V raw entries in the\n"
-        << "                         bin-by-bin comparison (statistical-soundness floor). Default: off.\n"
+        << "  --min-entries-per-bin V Ignore bins with fewer than V raw entries in diagnostics\n"
+        << "                         and mask them in 2D comparison plots. Default: off.\n"
         << "  --max-integral-sigma V Only count an integral difference as a failure when it is also\n"
         << "                         significant at more than V Poisson sigma. Negative disables. Default: 5.\n"
         << "  --min-chi2-bins N      Apply the chi2/ndf gate only when at least N bins survive the\n"
@@ -167,7 +167,8 @@ std::string comparison_header(const std::vector<SubsystemHistos *> &histos, bool
 }
 
 void save_comparison(const std::vector<SubsystemHistos *> &histos, const std::string &plot_dir,
-                     const std::string &header, bool normalize, const DiagnosticSummary &diagnostics)
+                     const std::string &header, bool normalize, const DiagnosticSummary &diagnostics,
+                     const HistoCompareOptions &compare_options)
 {
     if (histos.size() != 2) {
         return;
@@ -240,7 +241,8 @@ void save_comparison(const std::vector<SubsystemHistos *> &histos, const std::st
         const bool passed = has_status && status->second;
         draw_2d_comparison(comparison[0], comparison[1], labels, names_2d[index],
                            plot_file(plot_dir, "compare_" + names_2d[index]), header,
-                           has_status, passed);
+                           has_status, passed, compare_options.min_entries_per_bin,
+                           source_histos[0], source_histos[1]);
     }
 }
 
@@ -340,7 +342,8 @@ bool run_subsystem(const RunOptions &options)
 
     if (options.make_plots && compare && !normalize_comparison) {
         ensure_directory(options.plot_dir);
-        save_comparison(histo_views, options.plot_dir, compare_header, false, diagnostics);
+        save_comparison(histo_views, options.plot_dir, compare_header, false, diagnostics,
+                        options.compare_options);
         subsystem->save_comparison_plots(histo_views, options.plot_dir, compare_header, false,
                                          diagnostics);
     }
@@ -362,7 +365,8 @@ bool run_subsystem(const RunOptions &options)
             histos->save_plots(options.plot_dir);
         }
         if (compare && normalize_comparison) {
-            save_comparison(histo_views, options.plot_dir, compare_header, true, diagnostics);
+            save_comparison(histo_views, options.plot_dir, compare_header, true, diagnostics,
+                            options.compare_options);
             subsystem->save_comparison_plots(histo_views, options.plot_dir, compare_header, true,
                                              diagnostics);
         }

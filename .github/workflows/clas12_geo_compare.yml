@@ -99,7 +99,7 @@ jobs:
               while IFS= read -r line; do
                 [[ -n "$line" ]] || continue
                 msg="${line#"$detector": }"
-                echo "| ${detector} | — | fail | ${msg} |"
+                echo "| ${detector} | — | ❌ fail | ${msg} |"
                 emitted=1
               done < <(grep -E "^${detector}: " "$log" || true)
 
@@ -109,13 +109,13 @@ jobs:
                 rest="${line#"$detector"/}"     # "<variation>: <detail>"
                 variation="${rest%%:*}"          # "<variation>"
                 detail="${rest#*: }"             # "ok (...)" / "differs (...)"
-                if [[ "$detail" == ok* ]]; then result="pass"; else result="fail"; fi
+                if [[ "$detail" == ok* ]]; then result="✅ pass"; else result="❌ fail"; fi
                 echo "| ${detector} | ${variation} | ${result} | ${detail} |"
                 emitted=1
               done < <(grep -E "^${detector}/[^:]+: " "$log" || true)
 
               if [[ "$emitted" -eq 0 ]]; then
-                echo "| ${detector} | — | fail | no comparison result found |"
+                echo "| ${detector} | — | ❌ fail | no comparison result found |"
               fi
             done
           } >> "$GITHUB_STEP_SUMMARY"

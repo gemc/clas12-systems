@@ -1,8 +1,9 @@
 # hipo-histos
 
 `hipo-histos` reads one HIPO file for a subsystem and writes ROOT histograms plus optional PNG plots.
-For comparisons, pass exactly two HIPO files and `--compare-system <name>`; comparable 1D histograms are
-overlaid into comparison PNGs.
+For comparisons, pass exactly two HIPO files and `--compare-system <name>`. Comparable 1D histograms are
+overlaid into comparison PNGs, while comparable 2D histograms are drawn as a three-panel canvas with the first
+input, the second input, and the signed normalized bin difference `2*(N1-N2)/(N1+N2)`.
 
 Current subsystem support:
 
@@ -11,16 +12,29 @@ Current subsystem support:
   region rows, a layer-wire occupancy map, and a comparison TDC PNG when comparing two files.
 - `ec`: reads `ECAL::adc` and `ECAL::tdc`. The EC system has hipo layers 4..9 (EC inner U/V/W = 4/5/6, EC
   outer U/V/W = 7/8/9), each with 36 components. It writes a 6x6 ADC matrix PNG and a 6x6 TDC matrix PNG for
-  the first EC layer (hipo layer 4, one pad per component), plus a component-vs-layer hit-count PNG with one
-  pad per sector. It also writes the ROOT histograms and, when comparing two files, 6x6 ADC/TDC comparison
-  grids and per-sector hit-count comparison maps. The 2D channel maps store raw hit counts (not occupancy
-  percentages) so the comparison runs on Poisson-distributed counts.
+  each paired same-view layer set (U 4+7, V 5+8, W 6+9), plus higher-statistics TDC summaries summed by layer,
+  view, and all EC channels. It also writes a component-vs-layer hit-count PNG with one pad per sector, plus
+  generated primary phi/theta plots, and sector-summary diagnostics for generated primary phi, true EC-hit phi,
+  and ADC row sector. When comparing two files, it writes the paired-view ADC/TDC comparison grids, the summed
+  TDC comparison grids, the primary-kinematic and sector-summary comparisons, and per-sector hit-count
+  comparison maps. The 2D channel maps store raw hit counts (not occupancy percentages) so the comparison runs
+  on Poisson-distributed counts.
+- `pcal`: reads the same `ECAL::adc` and `ECAL::tdc` banks, restricted to PCAL hipo layers 1..3. It writes
+  summed ADC and TDC plots for U, V, W, and all PCAL channels, plus per-sector component-vs-layer hit-count
+  maps and a global true-hit XY map. In comparison mode it writes the same summed ADC/TDC comparison plots and
+  per-sector hit-count comparison maps.
+- `ftof`: reads `FTOF::adc` and `FTOF::tdc`. FTOF has three panels (layer 1 = 1A with 23 paddles, 2 = 1B with
+  62, 3 = 2 with 5). It writes ADC and TDC spectra per panel and for all panels combined, a paddle-vs-panel
+  hit-count map per sector, and a global true-hit y-vs-x map (as in `ec`). In comparison mode the per-panel and
+  combined ADC/TDC spectra are overlaid and the per-sector hit-count and y-vs-x maps are compared.
 
 Example:
 
 ```shell
 hipo-histos dc input.hipo --label input -o dc_histos.root --plot-dir dc_plots
 hipo-histos ec input.hipo --label input -o ec_histos.root --plot-dir ec_plots
+hipo-histos pcal input.hipo --label input -o pcal_histos.root --plot-dir pcal_plots
+hipo-histos ftof input.hipo --label input -o ftof_histos.root --plot-dir ftof_plots
 ```
 
 Comparison example:
@@ -39,9 +53,12 @@ The diagnostic mode runs by default when comparing two files. It compares the su
 2D histograms and prints `passed` or `failed` for each histogram, along with the comparison statistics
 (`chi2/ndf`, `ndf`, occupied bins, and median entries per occupied bin for each input). If the two inputs have
 different event counts, the comparison is made after normalizing histograms by event count, matching the
-plotting behavior. The 1D ROOT histograms store propagated bin uncertainties for the written ROOT file and PNG
-plots. DC z-vertex and occupancy-summary errors are computed from event-to-event fluctuations, not from
-individual hit counting errors, because hits in the same simulated event are correlated.
+plotting behavior. In 2D comparison plots, the third panel is not a content ratio; each bin is the symmetric
+difference `2*(N1-N2)/(N1+N2)`, where `N1` and `N2` are the plotted bin values from the first and second input.
+This keeps equal bins at 0 and bounds one-sided bins at +/-2. The 1D ROOT histograms store propagated bin
+uncertainties for the written ROOT file and PNG plots. DC z-vertex and occupancy-summary errors are computed
+from event-to-event fluctuations, not from individual hit counting errors, because hits in the same simulated
+event are correlated.
 
 For DC z-vertex and occupancy summaries, each simulated event first contributes an event-local bin total. The
 z-vertex content is the raw number of simulated events in each z bin; comparison plots and diagnostics divide by
@@ -68,6 +85,7 @@ Useful options:
 - `--compare-system NAME`: compare exactly two HIPO files for one subsystem, for example `dc`.
 - `--diagnostics`: print `passed` or `failed` comparisons for registered histograms.
 - `--fail-on-diff`: return a nonzero exit status when a diagnostic comparison does not pass.
+- `--printn N`: set the progress print interval. Default: 10000.
 - `--max-chi2-ndf VALUE`: set the maximum bin-by-bin chi2 divided by the number of compared bins. Default: 5.0.
 - `--max-integral-diff VALUE`: set the maximum relative difference between the two histogram integrals. This
   tests total rate or occupancy independently of the bin-by-bin shape. Default: 0.05.
@@ -81,10 +99,10 @@ Useful options:
   Default: 3.
 - `--max-bin-diff VALUE`: set an optional maximum absolute difference in any single bin. This catches isolated
   bin excursions even when the global chi2 and integral checks pass. Default: disabled.
-- `--min-entries-per-bin VALUE`: ignore bins with fewer than `VALUE` raw entries in the bin-by-bin
-  comparison. This is a statistical-soundness floor: low-statistics bins are dropped from the chi2 and
-  max-bin-diff checks (a bin is skipped when either histogram is below the floor) instead of producing a
-  misleading result. The number of skipped bins is reported as `skipped_bins`. Default: disabled; CI uses 10.
+- `--min-entries-per-bin VALUE`: ignore bins with fewer than `VALUE` raw entries. This is a
+  statistical-soundness floor: low-statistics bins are dropped from the chi2, integral, and max-bin-diff
+  checks (a bin is skipped when either histogram is below the floor), and the same bins are masked in 2D
+  comparison plots. The number of skipped bins is reported as `skipped_bins`. Default: disabled; CI uses 10.
 - `--interactive`: show the ROOT canvases and keep the GUI open after writing output.
 - `--time-window NS`: simulated event time window in ns. The DC default is 250 ns.
 - `--no-plots`: write only the ROOT output file.

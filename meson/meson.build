@@ -142,6 +142,11 @@ elif gemc_dep.type_name() == 'pkgconfig'
 endif
 
 gemc_plugin_dep = gemc_dep.partial_dependency(compile_args : true, includes : true)
+gemc_gdata_dep = declare_dependency()
+
+if gemc_prefix != ''
+    gemc_gdata_dep = declare_dependency(link_args : [gemc_prefix / 'lib' / 'libgdata.a'])
+endif
 
 if gemc_prefix != ''
     gemc_geant4_core_pc = gemc_prefix / 'lib' / 'pkgconfig' / 'geant4_core.pc'

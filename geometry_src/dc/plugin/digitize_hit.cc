@@ -2,9 +2,7 @@
 #include "dc.h"
 
 // gemc
-#include <gemc/gfields/gfieldConventions.h>
 #include <gemc/gfields/gmagneto.h>
-#include <gemc/guts/gutsConventions.h>
 
 // geant4
 #include "G4ThreeVector.hh"
@@ -17,8 +15,6 @@
 
 // c++
 #include <cmath>
-#include <exception>
-#include <string>
 #include <vector>
 
 
@@ -37,10 +33,6 @@ bool valid_dc_identity(int sector, int superlayer, int layer, int wire) {
            superlayer >= 1 && superlayer <= 6 &&
            layer >= 1 && layer <= DCConstants::NLAYERS &&
            wire >= 1 && wire <= DCConstants::NWIRES;
-}
-
-bool is_unset_field_name(const std::string& name) {
-    return name.empty() || name == UNINITIALIZEDSTRINGQUANTITY || name == "not provided";
 }
 
 } // namespace
@@ -101,56 +93,6 @@ double DC_digitization::doca_smearing(double x, [[maybe_unused]] double beta, in
                   + dcc.smearP3[sec][sl] * x * x * x
                   + dcc.smearP4[sec][sl] * x * x * x * x) * cm;
     return smear / (dcc.v0[sec][sl] * cm / ns);
-}
-
-
-void DC_digitization::initialize_magnetic_field() {
-    if (magneticFieldChecked) return;
-    magneticFieldChecked = true;
-
-    if (!gopts->doesOptionExist(GLOBAL_FIELD_OPTION)) return;
-
-    const std::string fieldName = gopts->getScalarString(GLOBAL_FIELD_OPTION);
-    if (is_unset_field_name(fieldName)) return;
-
-    for (const auto& fieldDefinition : gfields::get_GFieldDefinition(gopts)) {
-        if (fieldDefinition.name != fieldName) continue;
-
-        const auto torusScaleIt = fieldDefinition.field_parameters.find("torus_scale");
-        if (torusScaleIt != fieldDefinition.field_parameters.end()) {
-            try {
-                dcc.fieldPolarity = std::stod(torusScaleIt->second) < 0.0 ? -1.0 : 1.0;
-            } catch (const std::exception&) {
-                log->warning("Could not parse torus_scale <", torusScaleIt->second,
-                             "> for DC field polarity; using +1.");
-                dcc.fieldPolarity = 1.0;
-            }
-        }
-        break;
-    }
-
-    auto magneto = std::make_unique<GMagneto>(gopts);
-    if (magneto->isField(fieldName)) {
-        magneticField = magneto->getField(fieldName);
-        log->info(1, " DC digitization using magnetic field <", fieldName,
-                  "> with torus polarity ", dcc.fieldPolarity);
-    } else {
-        log->warning("Global field <", fieldName, "> is configured but was not available to DC digitization.");
-    }
-}
-
-
-double DC_digitization::magnetic_field_magnitude_tesla(const G4ThreeVector& position) {
-    using namespace CLHEP;
-
-    initialize_magnetic_field();
-    if (!magneticField) return 0.0;
-
-    const double point[3] = {position.x(), position.y(), position.z()};
-    double bfield[3] = {0.0, 0.0, 0.0};
-    magneticField->GetFieldValue(point, bfield);
-
-    return std::sqrt(bfield[0] * bfield[0] + bfield[1] * bfield[1] + bfield[2] * bfield[2]) / tesla;
 }
 
 
@@ -259,6 +201,11 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
     const double const1         = std::cos(6.0 * deg);
     const double const2         = sl_sign * std::sin(6.0 * deg);
 
+    if (!magneticFieldChecked) {
+        magneticField = GMagneto::initialize_magnetic_field(gopts, dcc.fieldPolarity, log);
+        magneticFieldChecked = true;
+    }
+
     for (size_t s = 0; s < nsteps; s++) {
         const G4ThreeVector DOCA(0.0,
                                  Lpos[s].y() + ylength - wirePos.y(),
@@ -270,7 +217,7 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
             rv.rotateZ(rotate_to_wire);
             alpha = std::asin((const1 * rv.x() + const2 * rv.y()) / rv.mag()) / deg;
 
-            thisMgnf = magnetic_field_magnitude_tesla(pos[s]);
+            thisMgnf = GMagneto::magnetic_field_magnitude_tesla(magneticField, pos[s]);
 
             // B-field isochrone-twist correction; theta0=0 when no global field is configured.
             const double theta0 = std::acos(1.0 - 0.02 * thisMgnf) / deg;

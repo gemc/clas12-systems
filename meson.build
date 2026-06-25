@@ -126,6 +126,8 @@ sql_db = meson.project_build_root() / 'clas12.db'
 clas12_systems = [
     'dc',
     'ec',
+    'ftof',
+    'pcal',
 ]
 geometry_test_timeout = 600
 
@@ -171,7 +173,7 @@ foreach plugin : clas12_plugins
         plugin['sources'],
         install             : plugin.get('install', true),
         install_dir         : plugin.get('install_dir', get_option('libdir')),
-        dependencies        : plugin.get('dependencies', []),
+        dependencies        : plugin.get('dependencies', []) + [gemc_gdata_dep],
         include_directories : plugin.get('include_directories', []),
         link_with           : plugin.get('link_with', []),
         name_prefix         : '',

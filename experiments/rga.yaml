@@ -14,15 +14,14 @@ gfields:
 global_field: clas12
 
 gsystem:
+  - name: dc
   - name: ec
-    factory: sqlite
-    digitization: ecal
 
 gstreamer:
   - format: csv
-    filename: ec
+    filename: dc
   - format: hipo
-    filename: ec
+    filename: dc
 
 phys_list: FTFP_BERT
 
@@ -37,5 +36,4 @@ gparticle:
     theta: 25*deg
     delta_theta: 15*deg
     randomThetaModel: cosine
-    phi: 60*deg
     delta_phi: 180*deg

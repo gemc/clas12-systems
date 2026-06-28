@@ -159,7 +159,7 @@ for v in "${variants[@]}"; do
     --plot-format "$plot_format" \
     -o "$compare_dir/${system}_compare.root" \
     --plot-dir "$compare_dir/plots" \
-    "${extra[@]}" \
+    ${extra[@]+"${extra[@]}"} \
     2>&1 | tee "$compare_dir/compare.log"
   status=${PIPESTATUS[0]}
   set -e

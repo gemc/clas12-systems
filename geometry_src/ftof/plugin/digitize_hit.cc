@@ -154,11 +154,9 @@ std::unique_ptr<GDigitizedData> FTOF_digitization::digitizeHitImpl(GHit* ghit, s
 
     const double fadc_time = convert_to_precision(time_in_ns - adcoffset);
 
-    // threshold and efficiency rejection (skipped when raw output is requested)
-    if (ftc.outputRAW == 0) {
-        if (energyDepositedAttenuated < ftc.threshold[secI][panI][pmt][padI]) return nullptr;
-        if (G4UniformRand() > ftc.efficiency[secI][panI][pmt][padI]) return nullptr;
-    }
+    // Threshold and efficiency rejection is applied after digitization by the framework via
+    // decisionToSkipDigitizedHitImpl(), gated by the -applyThresholds / -applyInefficiencies
+    // options (both off by default, matching clas12Tags).
 
     auto digitizedData = std::make_unique<GDigitizedData>(gopts, ghit);
     digitizedData->includeVariable("hitn", static_cast<int>(hitn));
@@ -173,4 +171,46 @@ std::unique_ptr<GDigitizedData> FTOF_digitization::digitizeHitImpl(GHit* ghit, s
     digitizedData->includeVariable("TDC_TDC", tdc);
 
     return digitizedData;
+}
+
+
+bool FTOF_digitization::apply_thresholds_impl(GHit* ghit, const GDigitizedData* /*digitizedData*/) {
+    using namespace CLHEP;
+
+    // Raw output keeps every hit.
+    if (ftc.outputRAW != 0) return false;
+
+    // The framework only calls this for hits that digitizeHitImpl already accepted, so the
+    // identity and per-paddle constants are valid here.
+    const auto& gid = ghit->getGID();
+    const int pmt  = gid[3].getValue();
+    const int secI = gid[0].getValue() - 1;
+    const int panI = gid[1].getValue() - 1;
+    const int padI = gid[2].getValue() - 1;
+
+    // Attenuated energy at this PMT end, recomputed deterministically as in digitizeHitImpl.
+    const double length = ghit->getDetectorDimensions()[0];
+    const double lx     = ghit->getAvgLocalPosition().x();
+    const double d      = length + (1 - 2 * pmt) * lx;
+    const double att    = std::exp(-d / cm / ftc.attlen[secI][panI][pmt][padI]);
+
+    double energyDepositedAttenuated = ghit->getTotalEnergyDeposited() * att;
+    if (ghit->getPid() == 0) {
+        energyDepositedAttenuated = ghit->getMomentum().mag() / GeV * att;
+    }
+
+    return energyDepositedAttenuated < ftc.threshold[secI][panI][pmt][padI];
+}
+
+
+bool FTOF_digitization::apply_efficiency_impl(GHit* ghit, const GDigitizedData* /*digitizedData*/) {
+    if (ftc.outputRAW != 0) return false;
+
+    const auto& gid = ghit->getGID();
+    const int pmt  = gid[3].getValue();
+    const int secI = gid[0].getValue() - 1;
+    const int panI = gid[1].getValue() - 1;
+    const int padI = gid[2].getValue() - 1;
+
+    return G4UniformRand() > ftc.efficiency[secI][panI][pmt][padI];
 }

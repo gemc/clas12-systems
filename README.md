@@ -8,6 +8,8 @@
 [![Doxygen][badge-doxygen]][workflow-doxygen]
 [![Binary Tarballs][badge-binary-tarballs]][workflow-binary-tarballs]
 [![Nightly Dev Release][badge-dev-release]][workflow-dev-release]
+[![HIPO Histos Comparison][badge-hipo-histos]][workflow-hipo-histos]
+[![macOS Tarball][badge-macos-tarball]][workflow-macos-tarball]
 
 [badge-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml/badge.svg
 [badge-ascii-geometry]: https://github.com/gemc/clas12-systems/workflows/ASCII%20Geometry%20Comparison/badge.svg
@@ -17,6 +19,8 @@
 [badge-doxygen]: https://github.com/gemc/clas12-systems/actions/workflows/doxygen.yml/badge.svg
 [badge-binary-tarballs]: https://github.com/gemc/clas12-systems/actions/workflows/binary_tarballs.yml/badge.svg
 [badge-dev-release]: https://github.com/gemc/clas12-systems/actions/workflows/dev_release.yml/badge.svg
+[badge-hipo-histos]: https://github.com/gemc/clas12-systems/actions/workflows/hipo_histos_compare.yml/badge.svg
+[badge-macos-tarball]: https://github.com/gemc/clas12-systems/actions/workflows/macos_tarball.yml/badge.svg
 [workflow-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml
 [workflow-ascii-geometry]: https://github.com/gemc/clas12-systems/actions/workflows/ascii_geometry_compare.yml
 [workflow-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy_and_test.yml
@@ -25,6 +29,8 @@
 [workflow-doxygen]: https://github.com/gemc/clas12-systems/actions/workflows/doxygen.yml
 [workflow-binary-tarballs]: https://github.com/gemc/clas12-systems/actions/workflows/binary_tarballs.yml
 [workflow-dev-release]: https://github.com/gemc/clas12-systems/actions/workflows/dev_release.yml
+[workflow-hipo-histos]: https://github.com/gemc/clas12-systems/actions/workflows/hipo_histos_compare.yml
+[workflow-macos-tarball]: https://github.com/gemc/clas12-systems/actions/workflows/macos_tarball.yml
 
 CLAS12 GEMC Systems contains the GEMC3 implementation of CLAS12 detector geometry systems and their
 system-specific plugins. It is the CLAS12 companion repository to the core GEMC application and Python geometry

@@ -35,6 +35,6 @@ gparticle:
     p: 5000*MeV
     delta_p: 1*GeV
     theta: 25*deg
-    delta_theta: 12*deg
+    delta_theta: 15*deg
     randomThetaModel: cosine
     delta_phi: 180*deg

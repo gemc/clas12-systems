@@ -30,6 +30,12 @@ public:
 
     [[nodiscard]] std::unique_ptr<GDigitizedData> digitizeHitImpl(GHit* ghit, size_t hitn) override;
 
+    // Post-digitization threshold and efficiency rejection, invoked by the framework only when
+    // ftof is enrolled in -applyThresholds / -applyInefficiencies (clas12Tags APPLY_THRESHOLDS
+    // / DETECTOR_INEFFICIENCY, both off by default).
+    [[nodiscard]] bool apply_thresholds_impl(GHit* ghit, const GDigitizedData* digitizedData) override;
+    [[nodiscard]] bool apply_efficiency_impl(GHit* ghit, const GDigitizedData* digitizedData) override;
+
     FTOFConstants ftc;
 
 private:

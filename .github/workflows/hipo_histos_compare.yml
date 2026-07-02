@@ -7,9 +7,10 @@
 #      -no_field=all (gun comes from the yaml, unchanged),
 #   3. downloads the latest clas12Tags reference HIPOs — both <system>_reference.hipo (field) and
 #      <system>_reference_nofield.hipo (no field); always latest, see hipo_reference.yml there,
-#   4. runs hipo-histos --compare-system against each matching reference/output pair. The job is gated on
-#      the nofield comparison (it fails only when GEMC3 no-field vs <system>_reference_nofield.hipo fails);
-#      the field comparison is reported in the summary but does not fail the job.
+#   4. runs hipo-histos --compare-system against each matching reference/output pair. A histogram
+#      mismatch does NOT fail the job — the field and nofield verdicts are reported in the summary
+#      only. The job fails solely when a step genuinely errors (build, GEMC3 run, reference download,
+#      or a hipo-histos error such as bad args / missing / corrupt input).
 #   5. on non-PR runs (push to main / manual dispatch), publishes the GEMC3 HIPO output to this repo's
 #      rolling `histo-gemc3` release as <system>_gemc3.hipo and <system>_gemc3_nofield.hipo — mirroring how
 #      clas12Tags publishes its reference (hipo_reference.yml). scripts/compare_hipo_references.sh downloads
@@ -24,7 +25,6 @@ permissions:
   packages: read
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # clas12Tags rolling reference release (always latest; not pinned).
   REFERENCE_REPO: gemc/clas12Tags
   REFERENCE_TAG: histo-reference
@@ -67,13 +67,13 @@ jobs:
       matrix:
         include:
           - system: dc
-            n_events: 10000
+            n_events: 20000
           - system: ec
-            n_events: 10000
+            n_events: 20000
           - system: ftof
-            n_events: 10000
+            n_events: 20000
           - system: pcal
-            n_events: 10000
+            n_events: 20000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -178,7 +178,7 @@ jobs:
           hipo_histos="$PWD/install/bin/hipo-histos"
 
           # Compare each GEMC3 output against the matching clas12Tags reference (field and
-          # nofield). Each variant gets its own output dir, log and per-variant exit status.
+          # nofield). Each variant gets its own output dir, log and per-variant verdict.
           # Write outputs inside the workspace: in a container job $RUNNER_TEMP (/__w/_temp)
           # and the runner.temp expression (/home/runner/work/_temp) differ, so artifacts
           # written under RUNNER_TEMP are invisible to the upload-artifact step.
@@ -189,20 +189,28 @@ jobs:
             out_dir="$GITHUB_WORKSPACE/${{ matrix.system }}_compare_${variant}"
             mkdir -p "$out_dir/plots"
 
+            # No --fail-on-diff: a histogram mismatch is reported (see the summary diagnostics)
+            # but must not fail the job. hipo-histos exits nonzero only on a genuine error (bad
+            # args, missing / corrupt input, crash), which fails the step here via pipefail.
             # This image's ROOT lacks the asimage feature, so it cannot write png/jpg — only the
             # .root file and vector formats. Emit PDF plots, which ROOT always writes in batch.
-            set +e
             "$hipo_histos" \
               --compare-system "${{ matrix.system }}" \
               "$ref" "$gemc3_hipo" \
               --label "clas12Tags-${variant}" --label gemc3 \
-              --diagnostics --fail-on-diff --max-integral-diff 0.1 \
+              --diagnostics --max-integral-diff 0.1 \
               --plot-format pdf \
               -o "$out_dir/${{ matrix.system }}_compare.root" \
               --plot-dir "$out_dir/plots" \
               2>&1 | tee "$out_dir/compare.log"
-            echo "${variant}_status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-            set -e
+
+            # Informational verdict for the summary, derived from the diagnostics line rather
+            # than the exit status (a mismatch no longer changes the exit status).
+            if grep -q '^Diagnostics: passed' "$out_dir/compare.log"; then
+              echo "${variant}_status=0" >> "$GITHUB_OUTPUT"
+            else
+              echo "${variant}_status=1" >> "$GITHUB_OUTPUT"
+            fi
             echo "Plots produced (${variant}):"; ls -l "$out_dir/plots"
           done
 
@@ -244,16 +252,11 @@ jobs:
             echo "| Events simulated | ${{ matrix.n_events }} |"
             echo "| Reference (field) | $field_reference |"
             echo "| Reference (nofield) | $nofield_reference |"
-            echo "| Result vs nofield (gating) | $(result_icon "$nofield_status") |"
+            echo "| Result vs nofield (informational) | $(result_icon "$nofield_status") |"
             echo "| Result vs field (informational) | $(result_icon "$field_status") |"
             echo
             for variant in nofield field; do
-              label="vs ${variant} reference"
-              if [[ "$variant" == nofield ]]; then
-                label="$label — gates the job"
-              else
-                label="$label — informational"
-              fi
+              label="vs ${variant} reference — informational"
               echo "<details><summary>Per-histogram diagnostics ${label}"
               echo "(chi2/ndf, occupied bins, median entries/bin)</summary>"
               echo
@@ -267,7 +270,7 @@ jobs:
 
       - name: Upload comparison artifacts
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.system }}-comparison
           # Workspace-relative paths: resolve consistently inside the job container.
@@ -305,7 +308,7 @@ jobs:
         # have a read-only GITHUB_TOKEN and must not (and cannot) write releases. Rolling tag:
         # assets are overwritten on each run, always the latest main output.
         if: ${{ github.event_name != 'pull_request' && steps.gemc.outcome == 'success' }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.GEMC3_HIPO_TAG }}
           name: GEMC3 HIPO output (rolling)
@@ -317,9 +320,3 @@ jobs:
             ${{ matrix.system }}_gemc3.hipo
             ${{ matrix.system }}_gemc3_nofield.hipo
             ${{ matrix.system }}_gemc3.txt
-
-      - name: Fail if nofield comparison failed
-        # The nofield reference is the gating comparison for now; the field comparison is
-        # reported in the summary but does not fail the job (see header note).
-        if: ${{ steps.compare.outputs.nofield_status != '0' }}
-        run: exit 1

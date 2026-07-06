@@ -142,6 +142,10 @@ jobs:
 
       - name: Set up coatjava
         shell: bash
+        env:
+          # Authenticate the coatjava "latest release" api.github.com lookup so it
+          # is not subject to the anonymous 60 req/hr per-IP limit (HTTP 403).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           # Homebrew's openjdk is keg-only; expose it so java/javac/maven resolve

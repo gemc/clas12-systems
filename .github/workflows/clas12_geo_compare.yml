@@ -46,6 +46,8 @@ jobs:
 
       - name: Set up coatjava
         working-directory: clas12-systems
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./ci/setup_coatjava.sh
 
       - name: Configure Python geometry environment

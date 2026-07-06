@@ -75,6 +75,8 @@ jobs:
 
       - name: Install coatjava
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./ci/setup_coatjava.sh
 

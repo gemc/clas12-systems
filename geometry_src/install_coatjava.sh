@@ -96,7 +96,25 @@ fi
 
 if [[ $USEDEVEL == "no" && -z "$COATJAVA_TAG" ]]; then
 	echo "Fetching latest release from $REPO..."
-	LATEST_RELEASE=$(curl -fsS "https://api.github.com/repos/$REPO/releases/latest" | jq -r .tag_name)
+	# Authenticate when a token is available: unauthenticated api.github.com calls
+	# share a 60 req/hr per-IP limit and return HTTP 403 on busy CI runners.
+	auth_header=()
+	token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+	if [[ -n "$token" ]]; then
+		auth_header=(-H "Authorization: Bearer $token")
+	fi
+	LATEST_RELEASE=""
+	for attempt in 1 2 3; do
+		if LATEST_RELEASE=$(curl -fsS "${auth_header[@]}" \
+			-H "Accept: application/vnd.github+json" \
+			"https://api.github.com/repos/$REPO/releases/latest" | jq -r .tag_name) \
+			&& [[ -n "$LATEST_RELEASE" && "$LATEST_RELEASE" != "null" ]]; then
+			break
+		fi
+		echo "Attempt $attempt to fetch latest release failed; retrying..." >&2
+		LATEST_RELEASE=""
+		sleep $((attempt * 5))
+	done
 	if [[ -z "$LATEST_RELEASE" || "$LATEST_RELEASE" == "null" ]]; then
 		echo "Error: could not determine latest coatjava release from $REPO." >&2
 		exit 1

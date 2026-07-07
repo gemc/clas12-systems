@@ -1,6 +1,7 @@
 experiment: clas12
 runno: 11
 nthreads: 1
+also_reject_true_info: false
 log_every: 100-0
 
 gfields:

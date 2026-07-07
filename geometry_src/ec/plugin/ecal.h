@@ -26,6 +26,10 @@ public:
     bool loadTTImpl(int runno, std::string const& variation) override;
 
     [[nodiscard]] std::unique_ptr<GDigitizedData> digitizeHitImpl(GHit* ghit, size_t hitn) override;
+    [[nodiscard]] bool apply_thresholds_impl(GHit* ghit, GDigitizedData* digitizedData) override;
+    [[nodiscard]] bool apply_efficiency_impl(GHit* ghit, GDigitizedData* digitizedData) override;
+    [[nodiscard]] bool thresholds_are_intrinsic_impl() const override { return true; }
+    [[nodiscard]] bool efficiencies_are_intrinsic_impl() const override { return true; }
 
     ECALConstants ecc;
 
@@ -39,4 +43,10 @@ private:
     }
 
     [[nodiscard]] static double getTRES(double x, double p0, double p1, double p2, double p3);
+
+    // Transient digitization values used by post-digitization ECAL policies. They are internal
+    // hand-off values, not output-bank variables: the callbacks use them to mirror clas12Tags
+    // thresholds and DSC/TDC efficiency without repeating attenuation, timing, or ADC work.
+    static constexpr const char* ECAL_UNROUNDED_ADC = "ecal_unrounded_adc";
+    static constexpr const char* ECAL_DTIME_IN_NS = "ecal_dtime_in_ns";
 };

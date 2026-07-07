@@ -33,8 +33,8 @@ public:
     // Post-digitization threshold and efficiency rejection, invoked by the framework only when
     // ftof is enrolled in -applyThresholds / -applyInefficiencies (clas12Tags APPLY_THRESHOLDS
     // / DETECTOR_INEFFICIENCY, both off by default).
-    [[nodiscard]] bool apply_thresholds_impl(GHit* ghit, const GDigitizedData* digitizedData) override;
-    [[nodiscard]] bool apply_efficiency_impl(GHit* ghit, const GDigitizedData* digitizedData) override;
+    [[nodiscard]] bool apply_thresholds_impl(GHit* ghit, GDigitizedData* digitizedData) override;
+    [[nodiscard]] bool apply_efficiency_impl(GHit* ghit, GDigitizedData* digitizedData) override;
 
     FTOFConstants ftc;
 
@@ -49,4 +49,9 @@ private:
     [[nodiscard]] double convert_to_precision(double time) const {
         return static_cast<int>(time / fadc_precision) * fadc_precision;
     }
+
+    // Internal hand-off values for post-digitization policies. They are cached during
+    // digitizeHitImpl() so the threshold and efficiency hooks can be separate without
+    // recalculating attenuation. Efficiency random draws are made only in apply_efficiency_impl().
+    static constexpr const char* FTOF_ATTENUATED_EDEP = "ftof_attenuated_edep";
 };

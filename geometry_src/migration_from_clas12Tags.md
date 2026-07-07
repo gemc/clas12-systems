@@ -20,6 +20,8 @@ Each system plugin lives under `geometry_src/<system>/plugin/` and contains:
 | `calibration_constants.cc` | `initializeDCConstants` | Load CCDB calibration tables into a constants struct |
 | `load_tt.cc` | `initializeDCConstants` (TT block) | Load `/daq/tt/<system>` translation table from CCDB |
 | `digitize_hit.cc` | `integrateDgt` | Compute the digitized observable (TDC, ADC, …) |
+| `apply_thresholds.cc` | `integrateDgt` threshold block | Optional/intrinsic complete-hit threshold rejection |
+| `apply_efficiency.cc` | `integrateDgt` efficiency block | Hit rejection or suppression |
 | `meson.build` | — | Register plugin in the `clas12_plugins` list |
 
 ---
@@ -33,7 +35,8 @@ Append one dictionary to `clas12_plugins`.  Always list all `.cc` files and decl
 clas12_plugins += [{
     'name'                : '<system>',
     'sources'             : files('readoutSpecs.cc', 'process_gtouchable.cc',
-                                   'calibration_constants.cc', 'load_tt.cc', 'digitize_hit.cc'),
+                                   'calibration_constants.cc', 'load_tt.cc', 'digitize_hit.cc',
+                                   'apply_thresholds.cc', 'apply_efficiency.cc'),
     'dependencies'        : [gemc_plugin_dep, ccdb_dep],
     'include_directories' : [include_directories('.')],
 }]
@@ -266,7 +269,40 @@ dgt->includeVariable("TDC_TDC",   smeared_time_ns);
 return dgt;
 ```
 
-Return `nullptr` to drop the hit (inefficiency rejection, out-of-bounds wire, …).
+Return `nullptr` only when digitization cannot produce a valid record, such as an invalid identity or missing
+calibration constants. Detector thresholds and efficiency policies belong in the post-digitization callbacks.
+
+### Post-digitization threshold and efficiency policies
+
+`digitizeHitImpl()` runs once. If a later policy needs an intermediate value that is not part of the published
+bank, cache it on the output record:
+
+```cpp
+dgt->includeTransientVariable("detector_unrounded_adc", unrounded_adc);
+```
+
+Transient values are copied with `GDigitizedData` but are not exposed to streamers. Reuse them in the policy
+callbacks rather than recalculating attenuation, smearing, or other detector response:
+
+```cpp
+bool SYS_digitization::apply_thresholds_impl(GHit*, GDigitizedData* dgt) {
+    const double adc = dgt->getTransientVariable("detector_unrounded_adc");
+    return adc < threshold;
+}
+```
+
+Keep the callback implementations in dedicated files (`apply_thresholds.cc` and `apply_efficiency.cc`),
+even when the function is small. This keeps `digitize_hit.cc` focused on building observables and makes the
+post-digitization policy explicit during GEMC2 comparisons.
+
+Callbacks receive mutable digitized data because a GEMC2 efficiency policy may suppress only one observable,
+such as a TDC, rather than reject the whole hit. Return `true` only to reject the complete digitized record.
+
+By default, `applyThresholds` and `applyInefficiencies` control whether the callbacks run. Override
+`thresholds_are_intrinsic_impl()` or `efficiencies_are_intrinsic_impl()` when the corresponding clas12Tags
+hit process applies the policy unconditionally. Cache only deterministic intermediate values from
+`digitizeHitImpl()`. Random draws that decide an efficiency policy belong inside `apply_efficiency_impl()`,
+so the stochastic policy remains separate from digitization.
 
 ---
 
@@ -306,7 +342,9 @@ the wire-depth axis half-thickness.
        Java coatjava if no C++ TT loader exists.
 8. [ ] Port `integrateDgt` → `digitize_hit.cc`; apply unit conversions and preserve GEMC2
        quirks listed above.
-9. [ ] Add the plugin entry to `geometry_src/<system>/plugin/meson.build`.
-10. [ ] Run `meson test -C build --suite clas12` and verify the geometry test passes before
+9. [ ] Move complete-hit threshold and efficiency decisions into `apply_thresholds_impl()` and
+       `apply_efficiency_impl()`; use transient values instead of repeating digitization calculations.
+10. [ ] Add the plugin entry to `geometry_src/<system>/plugin/meson.build`.
+11. [ ] Run `meson test -C build --suite clas12` and verify the geometry test passes before
         touching the plugin code.
-11. [ ] After integrating the plugin, confirm that `ci/build.sh` exits with `Failures: 0`.
+12. [ ] After integrating the plugin, confirm that `ci/build.sh` exits with `Failures: 0`.

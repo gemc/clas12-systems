@@ -22,7 +22,8 @@ class PCALHistos final : public SubsystemHistos {
     const std::string &label() const override { return label_; }
     long events() const override { return events_; }
 
-    void fill(const hipo::bank &ecal_adc, const hipo::bank &ecal_tdc, const hipo::bank &mc_true);
+    void fill(const hipo::bank &ecal_adc, const hipo::bank &ecal_tdc, const hipo::bank &mc_true,
+              const hipo::bank &mc_particle);
     void finalize() override;
     void write(TDirectory *directory) const override;
     void save_plots(const std::string &plot_dir) const override;
@@ -35,12 +36,16 @@ class PCALHistos final : public SubsystemHistos {
     std::vector<std::string> diagnostic_names() const override;
     double diagnostic_scale(const std::string &name, bool normalize) const override;
 
+    TH1D *adc_histo(int layer_index, int component) const;
+    TH1D *tdc_histo(int layer_index, int component) const;
     TH1D *adc_layer_histo(int layer_index) const;
     TH1D *adc_all_histo() const;
     TH1D *tdc_layer_histo(int layer_index) const;
     TH1D *tdc_all_histo() const;
+    TH1D *edep_all_histo() const;
 
     static constexpr int layers() { return kLayers; }
+    static constexpr int components() { return kComponents; }
     static int layer_number(int layer_index) { return kLayerMin + layer_index; }
     static std::string view_name(int layer_index);
 
@@ -58,20 +63,31 @@ class PCALHistos final : public SubsystemHistos {
     static constexpr double kAdcMax = 35000.0;
     static constexpr int kTdcBins = 100;
     static constexpr double kTdcMax = 6000.0;
+    static constexpr int kEdepBins = 200;
+    static constexpr double kEdepMax = 100.0;
 
     std::string label_;
     std::string safe_label_;
     long events_ = 0;
     bool normalized_ = false;
 
+    std::array<std::array<std::unique_ptr<TH1D>, kComponents>, kLayers> adc_;
+    std::array<std::array<std::unique_ptr<TH1D>, kComponents>, kLayers> tdc_;
     std::array<std::unique_ptr<TH1D>, kLayers> adc_layer_;
     std::unique_ptr<TH1D> adc_all_;
     std::array<std::unique_ptr<TH1D>, kLayers> tdc_layer_;
     std::unique_ptr<TH1D> tdc_all_;
+    std::unique_ptr<TH1D> edep_all_;
+    std::unique_ptr<TH1D> primary_phi_;
+    std::unique_ptr<TH1D> primary_theta_;
+    std::unique_ptr<TH1D> primary_phi_sector_;
+    std::unique_ptr<TH1D> true_phi_sector_;
+    std::unique_ptr<TH1D> adc_sector_;
     std::array<std::unique_ptr<TH2D>, kSectors> occupancy_;
     std::unique_ptr<TH2D> xy_global_;
 
     void book();
+    static int phi_sector(double x, double y);
 };
 
 class PCALSubsystem final : public Subsystem {

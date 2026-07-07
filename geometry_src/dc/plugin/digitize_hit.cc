@@ -6,7 +6,6 @@
 
 // geant4
 #include "G4ThreeVector.hh"
-#include "Randomize.hh"
 
 // CLHEP
 #include <CLHEP/Units/SystemOfUnits.h>
@@ -242,8 +241,6 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
         dcc.iScale[SECI][SLI] *
         (dcc.P1[SECI][SLI] / std::pow(X * X + dcc.P2[SECI][SLI], 2.0) +
          dcc.P3[SECI][SLI] / std::pow((1.0 - X) + dcc.P4[SECI][SLI], 2.0));
-    const double rnd = G4UniformRand();
-
     // Drift time from the distance-time function plus the beta-dependent time walk
     const double unsmeared = calc_Time(doca_val / cm,
                                         dcc.dmaxsuperlayer[SLI],
@@ -259,10 +256,12 @@ std::unique_ptr<GDigitizedData> DC_digitization::digitizeHitImpl(GHit* ghit, siz
     const double smeared_time = unsmeared + dt_random + hit_signal_t + prop_t
                               + dcc.get_T0(SECI, SLI, LAYI, nwire) + tdc_jitter;
 
-    // Reject the hit based on the distance-dependent inefficiency model
-    if (rnd < ddEff || X > 1.0) return nullptr;
-
     auto digitizedData = std::make_unique<GDigitizedData>(gopts, ghit);
+
+    // GEMC3 keeps digitization and efficiency rejection separated. Cache only the deterministic
+    // inputs needed by apply_efficiency_impl(); the random draw belongs to the efficiency hook.
+    digitizedData->includeTransientVariable(DC_FRACTIONAL_DOCA, X);
+    digitizedData->includeTransientVariable(DC_INEFFICIENCY, ddEff);
     digitizedData->includeVariable("hitn",      static_cast<int>(hitn));
     digitizedData->includeVariable("sector",    sector);
     digitizedData->includeVariable("layer",     SLI * 6 + layer); // global layer 1-36

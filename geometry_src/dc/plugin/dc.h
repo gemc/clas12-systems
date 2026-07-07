@@ -37,6 +37,8 @@ public:
 	bool loadTTImpl(int runno, std::string const& variation) override;
 
 	[[nodiscard]] std::unique_ptr<GDigitizedData> digitizeHitImpl(GHit* ghit, size_t hitn) override;
+	[[nodiscard]] bool apply_efficiency_impl(GHit* ghit, GDigitizedData* digitizedData) override;
+	[[nodiscard]] bool efficiencies_are_intrinsic_impl() const override { return true; }
 
 	DCConstants dcc;
 
@@ -49,4 +51,10 @@ private:
 
 	bool magneticFieldChecked = false;
 	std::shared_ptr<GField> magneticField;
+
+	// Transient digitization values used only by the post-digitization efficiency policy.
+	// They are not written to output banks; they let apply_efficiency_impl() make the GEMC2
+	// rejection decision without rerunning drift-time digitization.
+	static constexpr const char* DC_FRACTIONAL_DOCA = "dc_fractional_doca";
+	static constexpr const char* DC_INEFFICIENCY = "dc_inefficiency";
 };

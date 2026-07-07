@@ -130,12 +130,6 @@ std::unique_ptr<GDigitizedData> ECAL_digitization::digitizeHitImpl(GHit* ghit, s
 
     const double fveff = ecc.fveff[secI][layerI][stripI] * 10.0;
     const double dveff = ecc.dveff[secI][layerI][stripI] * 10.0;
-    const double fthr  = ecc.fthr[secI][layerI][stripI];
-
-    const double def0 = ecc.deff[secI][layerI][0][stripI];
-    const double def1 = ecc.deff[secI][layerI][1][stripI];
-    const double def2 = ecc.deff[secI][layerI][2][stripI];
-
     const double ftres0 = ecc.ftres[secI][layerI][0][0];
     const double ftres1 = ecc.ftres[secI][layerI][1][0];
     const double ftres2 = ecc.ftres[secI][layerI][2][0];
@@ -238,28 +232,26 @@ std::unique_ptr<GDigitizedData> ECAL_digitization::digitizeHitImpl(GHit* ghit, s
         }
     }
 
-    if (ecc.outputRAW == 0 && def0 > 0 && dtime_in_ns > 0 &&
-        G4UniformRand() > 1.0 / std::pow(1.0 + std::exp(-def0 * (ADC / 10.0 - def1)), def2)) {
-        dtime_in_ns = 0;
-    }
-    const bool below_threshold = (ecc.outputRAW == 0 && ADC / 10.0 < fthr);
-
     if (dbg) {
         log->info(0, "ECAL_DEBUG_LOWSTRIP s/l/strip ", sector, "/", layer, "/", strip,
                   " view ", view, " pDx2(mm) ", pDx2, " nsteps ", nsteps,
                   " xlocal[min,max] ", dbg_xl_min, ",", dbg_xl_max,
                   " latt[min,max] ", dbg_latt_min, ",", dbg_latt_max,
                   " att_last ", dbg_att_last, " A ", A, " B ", B,
-                  " Etota(MeV) ", Etota, " gain ", G, " ADC ", ADC, " fthr ", fthr,
-                  " -> ", below_threshold ? "REJECTED(below fthr)" : "kept");
+                  " Etota(MeV) ", Etota, " gain ", G, " ADC ", ADC,
+                  " threshold evaluated post-digitization");
     }
-
-    if (below_threshold) return nullptr;
 
     const double fadc_time = convert_to_precision(ftime_in_ns);
     const int tdc = da1 == 0 ? 0 : static_cast<int>(dtime_in_ns / da1);
 
     auto digitizedData = std::make_unique<GDigitizedData>(gopts, ghit);
+
+    // The FADC threshold and DSC/TDC efficiency are evaluated after digitization in GEMC3.
+    // Cache the unrounded ADC and discriminator time here so the policy hooks can apply the
+    // exact GEMC2 comparisons without recalculating attenuation, timing, or ADC conversion.
+    digitizedData->includeTransientVariable(ECAL_UNROUNDED_ADC, ADC);
+    digitizedData->includeTransientVariable(ECAL_DTIME_IN_NS, dtime_in_ns);
     digitizedData->includeVariable("hitn", static_cast<int>(hitn));
     digitizedData->includeVariable("sector", sector);
     digitizedData->includeVariable("layer", layer);

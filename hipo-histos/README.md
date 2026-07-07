@@ -19,10 +19,12 @@ Current subsystem support:
   TDC comparison grids, the primary-kinematic and sector-summary comparisons, and per-sector hit-count
   comparison maps. The 2D channel maps store raw hit counts (not occupancy percentages) so the comparison runs
   on Poisson-distributed counts.
-- `pcal`: reads the same `ECAL::adc` and `ECAL::tdc` banks, restricted to PCAL hipo layers 1..3. It writes
-  summed ADC and TDC plots for U, V, W, and all PCAL channels, plus per-sector component-vs-layer hit-count
-  maps and a global true-hit XY map. In comparison mode it writes the same summed ADC/TDC comparison plots and
-  per-sector hit-count comparison maps.
+- `pcal`: reads `ECAL::adc`, `ECAL::tdc`, `MC::True`, and `MC::Particle`, restricted to PCAL hipo layers 1..3.
+  It writes per-component ADC/TDC matrices for U, V, and W; summed ADC/TDC plots; per-sector hit-count maps;
+  primary-angle and sector-summary diagnostics; and global true-hit XY maps. It also compares the overall
+  pre-digitization `totEdep` spectrum. The PCAL run configuration retains truth for hits rejected during
+  digitization so this spectrum and the XY map describe transport rather than only accepted ADC rows.
+  Comparison mode writes the corresponding component matrices, summaries, energy spectrum, and channel maps.
 - `ftof`: reads `FTOF::adc` and `FTOF::tdc`. FTOF has three panels (layer 1 = 1A with 23 paddles, 2 = 1B with
   62, 3 = 2 with 5). It writes ADC and TDC spectra per panel and for all panels combined, a paddle-vs-panel
   hit-count map per sector, and a global true-hit y-vs-x map (as in `ec`). In comparison mode the per-panel and

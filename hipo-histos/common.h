@@ -70,6 +70,8 @@ std::string plot_file(const std::string &dir, const std::string &stem);
 void set_root_style(bool interactive);
 TCanvas *make_canvas(const std::string &name, const std::string &title, int width = 1100, int height = 800);
 void draw_canvas_header(TCanvas *canvas, const std::string &header);
+// One-line plot description, drawn left-aligned at the top of the canvas (multi-pad pages).
+void draw_canvas_description(TCanvas *canvas, const std::string &description);
 void draw_status_label(bool passed);
 void show_canvas(TCanvas *canvas);
 void draw_overlay(const std::vector<TH1 *> &histos, const std::vector<std::string> &labels,

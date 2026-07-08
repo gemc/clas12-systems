@@ -192,7 +192,9 @@ void DCHistos::book()
 
         z_vertex_[region] = std::make_unique<TH1D>(
             (prefix + "_z_vertex").c_str(),
-            ("DC region " + std::to_string(r) + " z vertex;z [mm];events").c_str(),
+            ("Track vertex z (MC::True vz) of true hits above threshold in DC region " +
+             std::to_string(r) + ", counted once per event and z bin;z [mm];events")
+                .c_str(),
             kBins / 2,
             z_min_[region],
             z_max_[region]);
@@ -200,7 +202,9 @@ void DCHistos::book()
 
         rz_vertex_[region] = std::make_unique<TH2D>(
             (prefix + "_rz_vertex").c_str(),
-            ("DC region " + std::to_string(r) + " r vs z;z [mm];r [mm]").c_str(),
+            ("Track vertex r vs z (MC::True vx, vy, vz) of true hits in DC region " + std::to_string(r) +
+             ", in MHz per sector;z [mm];r [mm]")
+                .c_str(),
             kBins,
             z_min_[region],
             z_max_[region],
@@ -211,7 +215,9 @@ void DCHistos::book()
 
         occupancy_summary_[region] = std::make_unique<TH1D>(
             (prefix + "_occupancy_summary").c_str(),
-            ("DC region " + std::to_string(r) + " occupancy;sector;occupancy [%]").c_str(),
+            ("DC region " + std::to_string(r) + " occupancy per sector: % of wires hit above threshold, "
+             "weighted for the R2/R3 electronics windows;sector;occupancy [%]")
+                .c_str(),
             kSectors,
             0.5,
             kSectors + 0.5);
@@ -222,7 +228,8 @@ void DCHistos::book()
             const auto name = prefix + "_s" + std::to_string(s) + "_tdc";
             tdc_[region][sector] = std::make_unique<TH1D>(
                 name.c_str(),
-                ("DC region " + std::to_string(r) + " sector " + std::to_string(s) + " TDC;TDC [ns];hits")
+                ("Digitized drift time (DC::tdc TDC column, ns), region " + std::to_string(r) +
+                 " sector " + std::to_string(s) + ", all layers and wires;TDC [ns];hits")
                     .c_str(),
                 200,
                 0.0,
@@ -233,7 +240,8 @@ void DCHistos::book()
 
     xy_global_ = std::make_unique<TH2D>(
         (safe_label_ + "_dc_xy_global").c_str(),
-        "DC hit y vs x (global);x [mm];y [mm];entries",
+        "True-hit y vs x in the lab frame (MC::True avgX/avgY, detector 6 = DC), hits above "
+        "threshold;x [mm];y [mm];entries",
         kXYBins,
         -kXYRange,
         kXYRange,
@@ -244,7 +252,8 @@ void DCHistos::book()
 
     layer_wire_ = std::make_unique<TH2D>(
         (safe_label_ + "_dc_layer_wire_occupancy").c_str(),
-        "DC layer-wire occupancy;wire;layer;occupancy [%]",
+        "DC occupancy [%] per wire and global layer 1-36, weighted for the R2/R3 electronics "
+        "windows;wire;layer;occupancy [%]",
         kWires,
         0.5,
         kWires + 0.5,
@@ -255,7 +264,7 @@ void DCHistos::book()
 
     mc_particle_momentum_ = std::make_unique<TH1D>(
         (safe_label_ + "_mc_particle_momentum").c_str(),
-        "MC particle momentum;p [GeV];particles",
+        "Momentum of the generated particles (MC::Particle, all rows);p [GeV];particles",
         240,
         0.0,
         12.0);
@@ -263,7 +272,7 @@ void DCHistos::book()
 
     mc_particle_theta_ = std::make_unique<TH1D>(
         (safe_label_ + "_mc_particle_theta").c_str(),
-        "MC particle theta;#theta [deg];particles",
+        "Polar angle of the generated particles (MC::Particle, all rows);#theta [deg];particles",
         180,
         0.0,
         60.0);
@@ -271,7 +280,7 @@ void DCHistos::book()
 
     mc_particle_phi_ = std::make_unique<TH1D>(
         (safe_label_ + "_mc_particle_phi").c_str(),
-        "MC particle phi;#phi [deg];particles",
+        "Azimuth of the generated particles (MC::Particle, all rows);#phi [deg];particles",
         180,
         -180.0,
         180.0);
@@ -536,6 +545,8 @@ void DCHistos::save_plots(const std::string &plot_dir) const
         draw_pad_label(region_label + " z vertex");
     }
 
+    draw_canvas_description(canvas, label_ + ": occupancy per sector, vertex r vs z, and vertex z of "
+                                             "threshold-passing true hits, by region");
     canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_dc_summary").c_str());
     show_canvas(canvas);
 
@@ -551,6 +562,8 @@ void DCHistos::save_plots(const std::string &plot_dir) const
                                 region == 0 && sector == 0);
         }
     }
+    draw_canvas_description(tdc_canvas,
+                            label_ + ": digitized drift time (DC::tdc, ns) by region and sector");
     tdc_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_dc_tdc").c_str());
     show_canvas(tdc_canvas);
 
@@ -816,6 +829,8 @@ void DCSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
         }
     }
 
+    draw_canvas_description(canvas,
+                            "DC TDC comparison: digitized drift time (DC::tdc, ns) by region and sector");
     draw_canvas_header(canvas, header);
     canvas->SaveAs(plot_file(plot_dir, "compare_dc_tdc").c_str());
     show_canvas(canvas);

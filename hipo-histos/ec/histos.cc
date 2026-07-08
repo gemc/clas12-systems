@@ -135,7 +135,8 @@ void ECHistos::book()
             const auto c = std::to_string(component + 1);
             adc_[view_index][component] = std::make_unique<TH1D>(
                 (safe_label_ + "_ec_" + view + "_c" + c + "_adc").c_str(),
-                ("EC " + view + " layers " + layer_pair + " component " + c + " ADC;ADC;hits")
+                ("Digitized ADC (ECAL::adc), EC view " + view + " (layers " + layer_pair + ") strip " +
+                 c + ", all sectors;ADC;hits")
                     .c_str(),
                 kAdcBins,
                 0.0,
@@ -144,7 +145,8 @@ void ECHistos::book()
 
             tdc_[view_index][component] = std::make_unique<TH1D>(
                 (safe_label_ + "_ec_" + view + "_c" + c + "_tdc").c_str(),
-                ("EC " + view + " layers " + layer_pair + " component " + c + " TDC;TDC;hits")
+                ("Digitized TDC (ECAL::tdc), EC view " + view + " (layers " + layer_pair + ") strip " +
+                 c + ", all sectors;TDC;hits")
                     .c_str(),
                 kTdcBins,
                 0.0,
@@ -157,7 +159,9 @@ void ECHistos::book()
         const int layer = kLayerMin + layer_index;
         tdc_layer_[layer_index] = std::make_unique<TH1D>(
             (safe_label_ + "_ec_l" + std::to_string(layer) + "_tdc_sum").c_str(),
-            ("EC layer " + std::to_string(layer) + " summed TDC;TDC;hits").c_str(),
+            ("Digitized TDC (ECAL::tdc), all strips of EC layer " + std::to_string(layer) +
+             ", all sectors;TDC;hits")
+                .c_str(),
             kTdcBins,
             0.0,
             kTdcMax);
@@ -168,7 +172,9 @@ void ECHistos::book()
         const auto view = view_name(view_index);
         tdc_view_[view_index] = std::make_unique<TH1D>(
             (safe_label_ + "_ec_" + view + "_tdc_sum").c_str(),
-            ("EC " + view + " view summed TDC;TDC;hits").c_str(),
+            ("Digitized TDC (ECAL::tdc), all strips of EC view " + view + " (layers " +
+             view_layer_pair_label(view_index) + "), all sectors;TDC;hits")
+                .c_str(),
             kTdcBins,
             0.0,
             kTdcMax);
@@ -177,7 +183,7 @@ void ECHistos::book()
 
     tdc_all_ = std::make_unique<TH1D>(
         (safe_label_ + "_ec_all_tdc_sum").c_str(),
-        "EC all layers summed TDC;TDC;hits",
+        "Digitized TDC (ECAL::tdc), all EC layers 4-9 (inner + outer) and sectors;TDC;hits",
         kTdcBins,
         0.0,
         kTdcMax);
@@ -185,7 +191,7 @@ void ECHistos::book()
 
     primary_phi_ = std::make_unique<TH1D>(
         (safe_label_ + "_ec_primary_phi").c_str(),
-        "EC generated primary phi;#phi [deg];particles",
+        "Azimuth of the generated primary particle (MC::Particle first row);#phi [deg];particles",
         180,
         -180.0,
         180.0);
@@ -193,7 +199,7 @@ void ECHistos::book()
 
     primary_theta_ = std::make_unique<TH1D>(
         (safe_label_ + "_ec_primary_theta").c_str(),
-        "EC generated primary theta;#theta [deg];particles",
+        "Polar angle of the generated primary particle (MC::Particle first row);#theta [deg];particles",
         180,
         0.0,
         60.0);
@@ -201,7 +207,8 @@ void ECHistos::book()
 
     primary_phi_sector_ = std::make_unique<TH1D>(
         (safe_label_ + "_ec_primary_phi_sector").c_str(),
-        "EC generated primary phi sector;sector;events",
+        "CLAS12 sector the generated primary's phi points to (sector 1 centered at phi = 0, "
+        "counterclockwise);sector;events",
         kSectors,
         0.5,
         kSectors + 0.5);
@@ -209,7 +216,8 @@ void ECHistos::book()
 
     true_ec_phi_sector_ = std::make_unique<TH1D>(
         (safe_label_ + "_ec_true_phi_sector").c_str(),
-        "EC true-hit global phi sector;sector;hits",
+        "CLAS12 sector from the azimuth of each true-hit position (MC::True avgX/avgY, detector 7 = "
+        "ECAL);sector;hits",
         kSectors,
         0.5,
         kSectors + 0.5);
@@ -217,7 +225,7 @@ void ECHistos::book()
 
     adc_sector_ = std::make_unique<TH1D>(
         (safe_label_ + "_ec_adc_sector").c_str(),
-        "EC ADC row sector;sector;hits",
+        "Sector column of the digitized ECAL::adc rows (EC layers 4-9);sector;hits",
         kSectors,
         0.5,
         kSectors + 0.5);
@@ -227,7 +235,9 @@ void ECHistos::book()
         const int s = sector + 1;
         occupancy_[sector] = std::make_unique<TH2D>(
             (safe_label_ + "_ec_s" + std::to_string(s) + "_occupancy").c_str(),
-            ("EC sector " + std::to_string(s) + " hit counts;component;layer;counts").c_str(),
+            ("Digitized-hit counts (ECAL::adc rows) per strip and EC layer 4-9, sector " +
+             std::to_string(s) + ";component;layer;counts")
+                .c_str(),
             kComponents,
             0.5,
             kComponents + 0.5,
@@ -239,7 +249,7 @@ void ECHistos::book()
 
     xy_global_ = std::make_unique<TH2D>(
         (safe_label_ + "_ec_xy_global").c_str(),
-        "EC hit y vs x (global);x [mm];y [mm];entries",
+        "True-hit y vs x in the lab frame (MC::True avgX/avgY, detector 7 = ECAL);x [mm];y [mm];entries",
         kXYBins,
         -kXYRange,
         kXYRange,
@@ -373,12 +383,16 @@ void ECHistos::save_plots(const std::string &plot_dir) const
         auto *adc_canvas = make_canvas("c_" + safe_label_ + "_ec_" + view + "_adc",
                                        label_ + " " + matrix_label + " ADC", 2000, 2000);
         draw_matrix(adc_canvas, adc_histos, {label_}, kMatrix);
+        draw_canvas_description(adc_canvas, label_ + ": digitized ADC (ECAL::adc) per strip, " +
+                                                matrix_label);
         adc_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ec_" + view + "_adc").c_str());
         show_canvas(adc_canvas);
 
         auto *tdc_canvas = make_canvas("c_" + safe_label_ + "_ec_" + view + "_tdc",
                                        label_ + " " + matrix_label + " TDC", 2000, 2000);
         draw_matrix(tdc_canvas, tdc_histos, {label_}, kMatrix);
+        draw_canvas_description(tdc_canvas, label_ + ": digitized TDC (ECAL::tdc) per strip, " +
+                                                matrix_label);
         tdc_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ec_" + view + "_tdc").c_str());
         show_canvas(tdc_canvas);
     }
@@ -392,6 +406,8 @@ void ECHistos::save_plots(const std::string &plot_dir) const
     auto *tdc_layer_canvas = make_canvas("c_" + safe_label_ + "_ec_tdc_layer_sum",
                                          label_ + " EC summed TDC by layer", 1800, 1200);
     draw_summary_canvas(tdc_layer_canvas, tdc_layer_histos, tdc_layer_labels, {label_});
+    draw_canvas_description(tdc_layer_canvas,
+                            label_ + ": digitized TDC (ECAL::tdc) over all strips, by EC layer 4-9");
     tdc_layer_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ec_tdc_layer_sum").c_str());
     show_canvas(tdc_layer_canvas);
 
@@ -406,6 +422,8 @@ void ECHistos::save_plots(const std::string &plot_dir) const
     auto *tdc_summary_canvas = make_canvas("c_" + safe_label_ + "_ec_tdc_view_sum",
                                            label_ + " EC summed TDC by view", 1800, 1200);
     draw_summary_canvas(tdc_summary_canvas, tdc_summary_histos, tdc_summary_labels, {label_});
+    draw_canvas_description(tdc_summary_canvas,
+                            label_ + ": digitized TDC (ECAL::tdc) over all strips, by EC view (u, v, w)");
     tdc_summary_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ec_tdc_view_sum").c_str());
     show_canvas(tdc_summary_canvas);
 
@@ -427,6 +445,9 @@ void ECHistos::save_plots(const std::string &plot_dir) const
     auto *sector_canvas = make_canvas("c_" + safe_label_ + "_ec_sector_summary",
                                       label_ + " EC sector diagnostics", 1800, 700);
     draw_summary_canvas(sector_canvas, sector_summary_histos, sector_summary_labels, {label_});
+    draw_canvas_description(sector_canvas,
+                            label_ + ": sector of the generated primary (phi), of the true hits "
+                                     "(MC::True position), and of the ECAL::adc rows");
     sector_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ec_sector_summary").c_str());
     show_canvas(sector_canvas);
 
@@ -441,6 +462,8 @@ void ECHistos::save_plots(const std::string &plot_dir) const
         occupancy_[sector]->DrawCopy("colz");
         draw_pad_label("S" + std::to_string(sector + 1) + " counts");
     }
+    draw_canvas_description(occupancy_canvas,
+                            label_ + ": digitized-hit counts per strip and layer (ECAL::adc), by sector");
     occupancy_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ec_occupancy").c_str());
     show_canvas(occupancy_canvas);
 
@@ -784,6 +807,8 @@ void ECSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
                 draw_comparison_pad(comparison, labels, "C" + std::to_string(component + 1),
                                     component == 0, has_status ? &passed : nullptr, shared_ymax);
             }
+            draw_canvas_description(canvas, matrix_label + " " + spec.title +
+                                                " per strip (ECAL::" + spec.suffix + ")");
             draw_canvas_header(canvas, header);
             canvas->SaveAs(plot_file(plot_dir, "compare_ec_" + view + "_" + spec.suffix).c_str());
             show_canvas(canvas);
@@ -821,6 +846,9 @@ void ECSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
         draw_comparison_pad(comparison, labels, "L" + std::to_string(layer_number), layer_index == 0,
                             has_status ? &passed : nullptr);
     }
+    draw_canvas_description(layer_canvas,
+                            "EC summed TDC comparison: digitized TDC (ECAL::tdc) over all strips, "
+                            "by layer 4-9");
     draw_canvas_header(layer_canvas, header);
     layer_canvas->SaveAs(plot_file(plot_dir, "compare_ec_tdc_layer_sum").c_str());
     show_canvas(layer_canvas);
@@ -858,6 +886,9 @@ void ECSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &hi
         draw_comparison_pad(comparison, labels, all_layers ? "all layers" : view, pad == 0,
                             has_status ? &passed : nullptr);
     }
+    draw_canvas_description(view_canvas,
+                            "EC summed TDC comparison: digitized TDC (ECAL::tdc) over all strips, "
+                            "by view (u, v, w)");
     draw_canvas_header(view_canvas, header);
     view_canvas->SaveAs(plot_file(plot_dir, "compare_ec_tdc_view_sum").c_str());
     show_canvas(view_canvas);

@@ -132,7 +132,9 @@ void PCALHistos::book()
             const auto channel = std::to_string(component + 1);
             adc_[layer_index][component] = std::make_unique<TH1D>(
                 (safe_label_ + "_pcal_" + view + "_c" + channel + "_adc").c_str(),
-                ("PCAL " + view + " component " + channel + " ADC;ADC;hits").c_str(),
+                ("Digitized ADC (ECAL::adc), PCAL view " + view + " strip " + channel +
+                 ", all sectors;ADC;hits")
+                    .c_str(),
                 kAdcBins,
                 0.0,
                 kAdcMax);
@@ -140,7 +142,9 @@ void PCALHistos::book()
 
             tdc_[layer_index][component] = std::make_unique<TH1D>(
                 (safe_label_ + "_pcal_" + view + "_c" + channel + "_tdc").c_str(),
-                ("PCAL " + view + " component " + channel + " TDC;TDC;hits").c_str(),
+                ("Digitized TDC (ECAL::tdc), PCAL view " + view + " strip " + channel +
+                 ", all sectors;TDC;hits")
+                    .c_str(),
                 kTdcBins,
                 0.0,
                 kTdcMax);
@@ -149,7 +153,9 @@ void PCALHistos::book()
 
         adc_layer_[layer_index] = std::make_unique<TH1D>(
             (safe_label_ + "_pcal_l" + std::to_string(layer) + "_adc_sum").c_str(),
-            ("PCAL layer " + std::to_string(layer) + " " + view + " summed ADC;ADC;hits").c_str(),
+            ("Digitized ADC (ECAL::adc), all strips of PCAL layer " + std::to_string(layer) + " (view " +
+             view + "), all sectors;ADC;hits")
+                .c_str(),
             kAdcBins,
             0.0,
             kAdcMax);
@@ -157,7 +163,9 @@ void PCALHistos::book()
 
         tdc_layer_[layer_index] = std::make_unique<TH1D>(
             (safe_label_ + "_pcal_l" + std::to_string(layer) + "_tdc_sum").c_str(),
-            ("PCAL layer " + std::to_string(layer) + " " + view + " summed TDC;TDC;hits").c_str(),
+            ("Digitized TDC (ECAL::tdc), all strips of PCAL layer " + std::to_string(layer) + " (view " +
+             view + "), all sectors;TDC;hits")
+                .c_str(),
             kTdcBins,
             0.0,
             kTdcMax);
@@ -166,7 +174,7 @@ void PCALHistos::book()
 
     adc_all_ = std::make_unique<TH1D>(
         (safe_label_ + "_pcal_all_adc_sum").c_str(),
-        "PCAL all layers summed ADC;ADC;hits",
+        "Digitized ADC (ECAL::adc), all PCAL layers 1-3 (u, v, w) and sectors;ADC;hits",
         kAdcBins,
         0.0,
         kAdcMax);
@@ -174,7 +182,7 @@ void PCALHistos::book()
 
     tdc_all_ = std::make_unique<TH1D>(
         (safe_label_ + "_pcal_all_tdc_sum").c_str(),
-        "PCAL all layers summed TDC;TDC;hits",
+        "Digitized TDC (ECAL::tdc), all PCAL layers 1-3 (u, v, w) and sectors;TDC;hits",
         kTdcBins,
         0.0,
         kTdcMax);
@@ -182,7 +190,8 @@ void PCALHistos::book()
 
     edep_all_ = std::make_unique<TH1D>(
         (safe_label_ + "_pcal_all_edep").c_str(),
-        "PCAL all layers pre-digitization energy;energy deposited [MeV];hits",
+        "True energy deposited per hit (MC::True totEdep, detector 7 = ECAL), before "
+        "digitization;energy deposited [MeV];hits",
         kEdepBins,
         0.0,
         kEdepMax);
@@ -190,7 +199,7 @@ void PCALHistos::book()
 
     primary_phi_ = std::make_unique<TH1D>(
         (safe_label_ + "_pcal_primary_phi").c_str(),
-        "PCAL generated primary phi;#phi [deg];particles",
+        "Azimuth of the generated primary particle (MC::Particle first row);#phi [deg];particles",
         180,
         -180.0,
         180.0);
@@ -198,7 +207,7 @@ void PCALHistos::book()
 
     primary_theta_ = std::make_unique<TH1D>(
         (safe_label_ + "_pcal_primary_theta").c_str(),
-        "PCAL generated primary theta;#theta [deg];particles",
+        "Polar angle of the generated primary particle (MC::Particle first row);#theta [deg];particles",
         180,
         0.0,
         60.0);
@@ -206,7 +215,8 @@ void PCALHistos::book()
 
     primary_phi_sector_ = std::make_unique<TH1D>(
         (safe_label_ + "_pcal_primary_phi_sector").c_str(),
-        "PCAL generated primary phi sector;sector;events",
+        "CLAS12 sector the generated primary's phi points to (sector 1 centered at phi = 0, "
+        "counterclockwise);sector;events",
         kSectors,
         0.5,
         kSectors + 0.5);
@@ -214,7 +224,8 @@ void PCALHistos::book()
 
     true_phi_sector_ = std::make_unique<TH1D>(
         (safe_label_ + "_pcal_true_phi_sector").c_str(),
-        "PCAL true-hit global phi sector;sector;hits",
+        "CLAS12 sector from the azimuth of each true-hit position (MC::True avgX/avgY, detector 7 = "
+        "ECAL);sector;hits",
         kSectors,
         0.5,
         kSectors + 0.5);
@@ -222,7 +233,7 @@ void PCALHistos::book()
 
     adc_sector_ = std::make_unique<TH1D>(
         (safe_label_ + "_pcal_adc_sector").c_str(),
-        "PCAL ADC row sector;sector;hits",
+        "Sector column of the digitized ECAL::adc rows (PCAL layers 1-3);sector;hits",
         kSectors,
         0.5,
         kSectors + 0.5);
@@ -232,7 +243,9 @@ void PCALHistos::book()
         const int s = sector + 1;
         occupancy_[sector] = std::make_unique<TH2D>(
             (safe_label_ + "_pcal_s" + std::to_string(s) + "_occupancy").c_str(),
-            ("PCAL sector " + std::to_string(s) + " hit counts;component;layer;counts").c_str(),
+            ("Digitized-hit counts (ECAL::adc rows) per strip and layer (1=u, 2=v, 3=w), sector " +
+             std::to_string(s) + ";component;layer;counts")
+                .c_str(),
             kComponents,
             0.5,
             kComponents + 0.5,
@@ -244,7 +257,7 @@ void PCALHistos::book()
 
     xy_global_ = std::make_unique<TH2D>(
         (safe_label_ + "_pcal_xy_global").c_str(),
-        "PCAL hit y vs x (global);x [mm];y [mm];entries",
+        "True-hit y vs x in the lab frame (MC::True avgX/avgY, detector 7 = ECAL);x [mm];y [mm];entries",
         kXYBins,
         -kXYRange,
         kXYRange,
@@ -370,6 +383,8 @@ void PCALHistos::save_plots(const std::string &plot_dir) const
             "c_" + safe_label_ + "_pcal_" + view + "_adc",
             label_ + " PCAL " + view + " ADC", 2200, 1900);
         draw_matrix(component_adc_canvas, adc_components, {label_});
+        draw_canvas_description(component_adc_canvas,
+                                label_ + ": digitized ADC (ECAL::adc) per strip C1-C68, PCAL view " + view);
         component_adc_canvas->SaveAs(
             plot_file(plot_dir, safe_label_ + "_pcal_" + view + "_adc").c_str());
         show_canvas(component_adc_canvas);
@@ -378,6 +393,8 @@ void PCALHistos::save_plots(const std::string &plot_dir) const
             "c_" + safe_label_ + "_pcal_" + view + "_tdc",
             label_ + " PCAL " + view + " TDC", 2200, 1900);
         draw_matrix(component_tdc_canvas, tdc_components, {label_});
+        draw_canvas_description(component_tdc_canvas,
+                                label_ + ": digitized TDC (ECAL::tdc) per strip C1-C68, PCAL view " + view);
         component_tdc_canvas->SaveAs(
             plot_file(plot_dir, safe_label_ + "_pcal_" + view + "_tdc").c_str());
         show_canvas(component_tdc_canvas);
@@ -398,12 +415,16 @@ void PCALHistos::save_plots(const std::string &plot_dir) const
     auto *adc_canvas = make_canvas("c_" + safe_label_ + "_pcal_adc_sum",
                                    label_ + " PCAL summed ADC", 1400, 1000);
     draw_summary_canvas(adc_canvas, adc_histos, layer_labels, {label_});
+    draw_canvas_description(adc_canvas,
+                            label_ + ": digitized ADC (ECAL::adc) over all strips, by PCAL layer/view");
     adc_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_pcal_adc_sum").c_str());
     show_canvas(adc_canvas);
 
     auto *tdc_canvas = make_canvas("c_" + safe_label_ + "_pcal_tdc_sum",
                                    label_ + " PCAL summed TDC", 1400, 1000);
     draw_summary_canvas(tdc_canvas, tdc_histos, layer_labels, {label_});
+    draw_canvas_description(tdc_canvas,
+                            label_ + ": digitized TDC (ECAL::tdc) over all strips, by PCAL layer/view");
     tdc_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_pcal_tdc_sum").c_str());
     show_canvas(tdc_canvas);
 
@@ -428,6 +449,9 @@ void PCALHistos::save_plots(const std::string &plot_dir) const
     auto *sector_canvas = make_canvas("c_" + safe_label_ + "_pcal_sector_summary",
                                       label_ + " PCAL sector diagnostics", 1800, 700);
     draw_summary_canvas(sector_canvas, sector_histos, sector_labels, {label_});
+    draw_canvas_description(sector_canvas,
+                            label_ + ": sector of the generated primary (phi), of the true hits "
+                                     "(MC::True position), and of the ECAL::adc rows");
     sector_canvas->SaveAs(
         plot_file(plot_dir, safe_label_ + "_pcal_sector_summary").c_str());
     show_canvas(sector_canvas);
@@ -443,6 +467,8 @@ void PCALHistos::save_plots(const std::string &plot_dir) const
         occupancy_[sector]->DrawCopy("colz");
         draw_pad_label("S" + std::to_string(sector + 1) + " counts");
     }
+    draw_canvas_description(occupancy_canvas,
+                            label_ + ": digitized-hit counts per strip and layer (ECAL::adc), by sector");
     occupancy_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_pcal_occupancy").c_str());
     show_canvas(occupancy_canvas);
 
@@ -745,6 +771,8 @@ void PCALSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &
                 draw_comparison_pad(comparison, labels, "C" + std::to_string(component + 1),
                                     component == 0, has_status ? &passed : nullptr);
             }
+            draw_canvas_description(canvas, "PCAL view " + view + " " + spec.title +
+                                                " per strip C1-C68 (ECAL::" + spec.suffix + ")");
             draw_canvas_header(canvas, header);
             canvas->SaveAs(
                 plot_file(plot_dir, "compare_pcal_" + view + "_" + spec.suffix).c_str());
@@ -806,6 +834,8 @@ void PCALSubsystem::save_comparison_plots(const std::vector<SubsystemHistos *> &
             draw_comparison_pad(comparison, labels, pad_label, pad == 0,
                                 has_status ? &passed : nullptr);
         }
+        draw_canvas_description(canvas, spec.title + ": digitized counts over all strips, by PCAL "
+                                        "layer/view (ECAL banks)");
         draw_canvas_header(canvas, header);
         canvas->SaveAs(plot_file(plot_dir, "compare_pcal_" + spec.suffix).c_str());
         show_canvas(canvas);

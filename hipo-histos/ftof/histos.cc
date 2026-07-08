@@ -55,7 +55,7 @@ void FTOFHistos::book()
         const auto name = panel_name(panel);
         adc_panel_[panel] = std::make_unique<TH1D>(
             (safe_label_ + "_ftof_p" + name + "_adc").c_str(),
-            ("FTOF panel " + name + " ADC;ADC;hits").c_str(),
+            ("Digitized ADC per PMT hit (FTOF::adc), panel " + name + ", all sectors;ADC;hits").c_str(),
             kAdcBins,
             0.0,
             kAdcMax);
@@ -63,7 +63,9 @@ void FTOFHistos::book()
 
         tdc_panel_[panel] = std::make_unique<TH1D>(
             (safe_label_ + "_ftof_p" + name + "_tdc").c_str(),
-            ("FTOF panel " + name + " TDC;TDC;hits").c_str(),
+            ("Digitized TDC per PMT hit (FTOF::tdc), panel " + name +
+             ", all sectors: hit time + propagation + walk - RF/paddle offsets;TDC;hits")
+                .c_str(),
             kTdcBins,
             kTdcMin,
             kTdcMax);
@@ -72,7 +74,7 @@ void FTOFHistos::book()
 
     adc_all_ = std::make_unique<TH1D>(
         (safe_label_ + "_ftof_all_adc").c_str(),
-        "FTOF all panels ADC;ADC;hits",
+        "Digitized ADC per PMT hit (FTOF::adc), all panels (1A, 1B, 2) and sectors;ADC;hits",
         kAdcBins,
         0.0,
         kAdcMax);
@@ -80,7 +82,7 @@ void FTOFHistos::book()
 
     tdc_all_ = std::make_unique<TH1D>(
         (safe_label_ + "_ftof_all_tdc").c_str(),
-        "FTOF all panels TDC;TDC;hits",
+        "Digitized TDC per PMT hit (FTOF::tdc), all panels (1A, 1B, 2) and sectors;TDC;hits",
         kTdcBins,
         kTdcMin,
         kTdcMax);
@@ -90,7 +92,9 @@ void FTOFHistos::book()
         const int s = sector + 1;
         occupancy_[sector] = std::make_unique<TH2D>(
             (safe_label_ + "_ftof_s" + std::to_string(s) + "_occupancy").c_str(),
-            ("FTOF sector " + std::to_string(s) + " hit counts;paddle;panel;counts").c_str(),
+            ("Digitized-hit counts (FTOF::adc rows) per paddle and panel (1=1A, 2=1B, 3=2), sector " +
+             std::to_string(s) + ";paddle;panel;counts")
+                .c_str(),
             kMaxPaddles,
             0.5,
             kMaxPaddles + 0.5,
@@ -102,7 +106,7 @@ void FTOFHistos::book()
 
     xy_global_ = std::make_unique<TH2D>(
         (safe_label_ + "_ftof_xy_global").c_str(),
-        "FTOF hit y vs x (global);x [mm];y [mm];entries",
+        "True-hit y vs x in the lab frame (MC::True avgX/avgY, detector 12 = FTOF);x [mm];y [mm];entries",
         kXYBins,
         -kXYRange,
         kXYRange,
@@ -110,6 +114,15 @@ void FTOFHistos::book()
         -kXYRange,
         kXYRange);
     xy_global_->Sumw2();
+
+    true_time_ = std::make_unique<TH1D>(
+        (safe_label_ + "_ftof_true_time").c_str(),
+        "True hit time (MC::True avgT, detector 12 = FTOF): energy-weighted track time at the paddle, "
+        "before digitization;time [ns];hits",
+        kTrueTimeBins,
+        0.0,
+        kTrueTimeMax);
+    true_time_->Sumw2();
 }
 
 void FTOFHistos::fill(const hipo::bank &ftof_adc, const hipo::bank &ftof_tdc, const hipo::bank &mc_true)
@@ -152,6 +165,7 @@ void FTOFHistos::fill(const hipo::bank &ftof_adc, const hipo::bank &ftof_tdc, co
             continue;
         }
         xy_global_->Fill(mc_true.getDouble("avgX", row), mc_true.getDouble("avgY", row));
+        true_time_->Fill(mc_true.getDouble("avgT", row));
     }
 }
 
@@ -178,6 +192,7 @@ void FTOFHistos::write(TDirectory *directory) const
         occupancy_[sector]->Write();
     }
     xy_global_->Write();
+    true_time_->Write();
     saved_dir->cd();
 }
 
@@ -197,13 +212,18 @@ void FTOFHistos::save_plots(const std::string &plot_dir) const
 
     auto *adc_canvas = make_canvas("c_" + safe_label_ + "_ftof_adc", label_ + " FTOF ADC", 1800, 1200);
     draw_spectra(adc_canvas, adc_histos, spectra_labels);
+    draw_canvas_description(adc_canvas, label_ + ": digitized ADC per PMT hit (FTOF::adc), by panel");
     adc_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ftof_adc").c_str());
     show_canvas(adc_canvas);
 
     auto *tdc_canvas = make_canvas("c_" + safe_label_ + "_ftof_tdc", label_ + " FTOF TDC", 1800, 1200);
     draw_spectra(tdc_canvas, tdc_histos, spectra_labels);
+    draw_canvas_description(tdc_canvas, label_ + ": digitized TDC per PMT hit (FTOF::tdc), by panel");
     tdc_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ftof_tdc").c_str());
     show_canvas(tdc_canvas);
+
+    draw_overlay({true_time_.get()}, {label_}, "ftof_true_time",
+                 plot_file(plot_dir, safe_label_ + "_ftof_true_time"));
 
     auto *occupancy_canvas = make_canvas("c_" + safe_label_ + "_ftof_occupancy",
                                          label_ + " FTOF hit counts", 2100, 1300);
@@ -216,6 +236,8 @@ void FTOFHistos::save_plots(const std::string &plot_dir) const
         occupancy_[sector]->DrawCopy("colz");
         draw_pad_label("S" + std::to_string(sector + 1) + " counts");
     }
+    draw_canvas_description(occupancy_canvas,
+                            label_ + ": digitized-hit counts per paddle and panel (FTOF::adc), by sector");
     occupancy_canvas->SaveAs(plot_file(plot_dir, safe_label_ + "_ftof_occupancy").c_str());
     show_canvas(occupancy_canvas);
 
@@ -234,6 +256,7 @@ std::vector<TH1 *> FTOFHistos::comparison_histos() const
         histos.push_back(tdc_panel_[panel].get());
     }
     histos.push_back(tdc_all_.get());
+    histos.push_back(true_time_.get());
     return histos;
 }
 
@@ -248,6 +271,7 @@ std::vector<std::string> FTOFHistos::comparison_names() const
         names.push_back("ftof_p" + panel_name(panel) + "_tdc");
     }
     names.emplace_back("ftof_all_tdc");
+    names.emplace_back("ftof_true_time");
     return names;
 }
 

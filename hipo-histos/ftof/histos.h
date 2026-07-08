@@ -49,6 +49,10 @@ class FTOFHistos final : public SubsystemHistos {
     static constexpr double kTdcMax = 2000.0;
     static constexpr int kXYBins = 100;
     static constexpr double kXYRange = 5000.0;
+    // True hit times (MC::True avgT) peak at the ~21 ns flight time to the counters; late secondaries
+    // fall in the overflow bin, which both inputs accumulate identically.
+    static constexpr int kTrueTimeBins = 100;
+    static constexpr double kTrueTimeMax = 100.0;
 
     static constexpr std::array<int, kPanels> kPaddles = {23, 62, 5};
 
@@ -62,6 +66,7 @@ class FTOFHistos final : public SubsystemHistos {
     std::unique_ptr<TH1D> tdc_all_;
     std::array<std::unique_ptr<TH2D>, kSectors> occupancy_;
     std::unique_ptr<TH2D> xy_global_;
+    std::unique_ptr<TH1D> true_time_;
 
     void book();
 };

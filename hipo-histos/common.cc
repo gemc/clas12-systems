@@ -98,18 +98,49 @@ std::unique_ptr<TH2> make_asymmetry_2d(const TH2 *first, const TH2 *second,
     return asymmetry;
 }
 
+// Plot name (bold) and one-line description drawn in the top band of the current canvas, so every
+// saved plot states what it shows without consulting the source.
+void draw_title_block(const std::string &title, const std::string &description, double title_y,
+                      double description_y)
+{
+    TLatex latex;
+    latex.SetNDC(true);
+    if (!title.empty()) {
+        latex.SetTextFont(63);
+        latex.SetTextSize(24);
+        latex.DrawLatex(0.02, title_y, title.c_str());
+    }
+    if (!description.empty()) {
+        latex.SetTextFont(43);
+        latex.SetTextSize(18);
+        latex.SetTextColor(kGray + 3);
+        latex.DrawLatex(0.02, description_y, description.c_str());
+    }
+}
+
+const char *first_histo_title(const std::vector<TH1 *> &histos)
+{
+    for (const auto *histo : histos) {
+        if (histo != nullptr) {
+            return histo->GetTitle();
+        }
+    }
+    return "";
+}
+
 void draw_2d_pad(TH2 *histo, const std::string &label)
 {
     gPad->SetGrid();
     gPad->SetRightMargin(0.16);
-    gPad->SetTopMargin(0.08);
+    // Extra headroom keeps the pad label clear of the canvas-level title/description block.
+    gPad->SetTopMargin(0.12);
     histo->DrawCopy("colz");
 
     TLatex latex;
     latex.SetNDC(true);
     latex.SetTextFont(43);
     latex.SetTextSize(18);
-    latex.DrawLatex(0.12, 0.93, label.c_str());
+    latex.DrawLatex(0.12, 0.885, label.c_str());
 }
 
 } // namespace
@@ -191,13 +222,29 @@ void draw_canvas_header(TCanvas *canvas, const std::string &header)
         return;
     }
 
+    // Right-aligned so the left side of the top band stays free for the plot description.
     canvas->cd();
     TText text;
     text.SetNDC(true);
     text.SetTextFont(43);
     text.SetTextSize(16);
-    text.SetTextAlign(21);
-    text.DrawText(0.5, 0.977, header.c_str());
+    text.SetTextAlign(31);
+    text.DrawText(0.995, 0.977, header.c_str());
+}
+
+void draw_canvas_description(TCanvas *canvas, const std::string &description)
+{
+    if (canvas == nullptr || description.empty()) {
+        return;
+    }
+
+    canvas->cd();
+    TLatex latex;
+    latex.SetNDC(true);
+    latex.SetTextFont(43);
+    latex.SetTextSize(20);
+    latex.SetTextColor(kGray + 3);
+    latex.DrawLatex(0.005, 0.977, description.c_str());
 }
 
 void draw_status_label(bool passed)
@@ -231,6 +278,8 @@ void draw_overlay(const std::vector<TH1 *> &histos, const std::vector<std::strin
     auto canvas = make_canvas("c_" + sanitize_root_name(output_path), title);
     canvas->SetGrid();
     canvas->SetLogy(log_y);
+    // Leave room above the frame for the title/description block and the header.
+    canvas->SetTopMargin(0.12);
 
     const std::vector<int> colors = {kBlack, kRed + 1, kBlue + 1, kGreen + 2};
     const std::vector<int> markers = {20, 24, 21, 25};
@@ -269,6 +318,7 @@ void draw_overlay(const std::vector<TH1 *> &histos, const std::vector<std::strin
         draw_status_label(passed);
     }
     legend.DrawClone();
+    draw_title_block(title, first_histo_title(histos), 0.962, 0.925);
     draw_canvas_header(canvas, header);
     canvas->SaveAs(output_path.c_str());
     show_canvas(canvas);
@@ -283,7 +333,9 @@ void draw_2d(TH2 *histo, const std::string &title, const std::string &output_pat
     auto canvas = make_canvas("c_" + sanitize_root_name(output_path), title);
     canvas->SetGrid();
     canvas->SetRightMargin(0.15);
+    canvas->SetTopMargin(0.12);
     histo->DrawCopy("colz");
+    draw_title_block(title, histo->GetTitle(), 0.962, 0.925);
     canvas->SaveAs(output_path.c_str());
     show_canvas(canvas);
 }
@@ -332,6 +384,8 @@ void draw_2d_comparison(TH2 *first, TH2 *second, const std::vector<std::string> 
     canvas->cd(3);
     draw_2d_pad(asymmetry.get(), asymmetry_label);
 
+    canvas->cd();
+    draw_title_block(title, first != nullptr ? first->GetTitle() : "", 0.952, 0.918);
     draw_canvas_header(canvas, header);
     canvas->SaveAs(output_path.c_str());
     show_canvas(canvas);

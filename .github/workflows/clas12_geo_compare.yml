@@ -75,7 +75,7 @@ jobs:
           clas12tags="$GITHUB_WORKSPACE/clas12Tags/experiments/clas12"
 
           set +e
-          scripts/compare_ascii_geometry.py \
+          scripts/compare_ascii_databases.py \
             --clas12tags "$clas12tags" \
             --workdir "$workdir" \
             --keep \

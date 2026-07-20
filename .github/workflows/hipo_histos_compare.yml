@@ -74,6 +74,8 @@ jobs:
             n_events: 20000
           - system: pcal
             n_events: 20000
+          - system: ltcc
+            n_events: 20000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6

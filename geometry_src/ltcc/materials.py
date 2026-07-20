@@ -118,6 +118,9 @@ QE_PMT = (
 
 
 def define_materials(configuration):
+    # The elliptical mirror volumes use G4_AIR_Optical (GEMC2's built-in "Air_Opt"),
+    # predefined by gemc in g4system/g4materials.cc.
+
     # ltcc gas is C4F10 with optical properties
     c4f10 = GMaterial("C4F10")
     c4f10.description = "clas12 ltcc gas"

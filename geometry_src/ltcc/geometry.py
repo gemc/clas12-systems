@@ -571,7 +571,7 @@ def build_ell_mirrors(configuration, pars, presence, gas):
                 mirror.position = f"{fstr(cntx)}*cm, {fstr(e['centery'])}*cm, 0*mm"
                 mirror.rotations = [f"0*deg, 0*deg, {fstr(angle)}*deg"]
                 mirror.color = "aaffff"
-                mirror.material = "Air_Opt"
+                mirror.material = "G4_AIR_Optical"
                 mirror.style = 1
                 mirror.mirror = MIRROR_SURFACE
                 operation(
@@ -609,7 +609,7 @@ def build_pmts(configuration, pars, presence):
                 pmt.parameters = f"0*cm, {radius}*cm, 0.1*cm, 0*deg, 360*deg"
                 pmt.material = "LTCCPMTGlass"
                 pmt.style = 1
-                #pmt.digitization = "ltcc"
+                pmt.digitization = "ltcc"
                 pmt.set_identifier("sector", sector, "side", side_id, "segment", n)
                 pmt.publish(configuration)
 

@@ -20,11 +20,11 @@ gsystem:
 
 gstreamer:
   - format: csv
-    filename: ec
+    filename: ltcc
   - format: hipo
-    filename: ec
+    filename: ltcc
 
-phys_list: FTFP_BERT
+phys_list: FTFP_BERT + G4OpticalPhysics
 
 g4camera:
   theta: 120*deg

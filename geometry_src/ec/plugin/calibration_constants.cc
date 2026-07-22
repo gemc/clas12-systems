@@ -1,4 +1,5 @@
 #include "ecal.h"
+#include "clas12_ccdb.h"
 
 // CCDB
 #include <CCDB/Calibration.h>
@@ -30,11 +31,12 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     log->info(1, " Loading ECAL constants for run ", runno, ", variation ", variation, " from ", conn);
 
-    std::unique_ptr<ccdb::Calibration> calib(ccdb::CalibrationGenerator::CreateCalibration(conn));
+    auto calib = clas12ccdb::connect(conn, log);
+    if (!calib) return false;
     std::vector<std::vector<double>> data;
 
     snprintf(db, sizeof(db), "/calibration/ec/gain:%d:%s", runno, variation.c_str());
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -42,8 +44,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/atten:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -55,8 +56,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/ftime:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -64,8 +64,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/dtime:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -73,18 +72,15 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/tdc_global_offset:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     ecc.tdc_global_offset = data[0][3];
 
     snprintf(db, sizeof(db), "/calibration/ec/fadc_global_offset:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     ecc.fadc_global_offset = data[0][3];
 
     snprintf(db, sizeof(db), "/calibration/ec/global_time_walk:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -92,15 +88,13 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/time_jitter:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     ecc.jitter_period = data[0][3];
     ecc.jitter_phase  = static_cast<int>(data[0][4]);
     ecc.jitter_cycles = static_cast<int>(data[0][5]);
 
     snprintf(db, sizeof(db), "/calibration/ec/fadc_offset:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -108,8 +102,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/tmf_offset:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -117,8 +110,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/fveff:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -126,8 +118,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/dveff:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -135,8 +126,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/deff:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -146,8 +136,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/fthr:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -155,8 +144,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/ftres:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -164,8 +152,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ec/dtres:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -173,6 +160,8 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     if (accountForHardwareStatus) {
+        // Optional table: an empty status set is acceptable (channels default to good), so this
+        // does not use clas12ccdb::loadTable, which treats an empty table as a fatal error.
         snprintf(db, sizeof(db), "/calibration/ec/status:%d:%s", runno, variation.c_str());
         data.clear();
         calib->GetCalib(data, db);

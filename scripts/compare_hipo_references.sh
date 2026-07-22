@@ -17,7 +17,7 @@
 # Usage:
 #   scripts/compare_hipo_references.sh <detector> [options]
 #
-#   <detector>                  one of: dc ec ftof pcal
+#   <detector>                  one of: dc ec ftof ltcc pcal
 #
 # Options:
 #   --variant <field|nofield|both>   which reference variant(s) to compare (default: both)
@@ -32,6 +32,7 @@
 #   scripts/compare_hipo_references.sh dc
 #   scripts/compare_hipo_references.sh ec --variant nofield --fail-on-diff
 #   scripts/compare_hipo_references.sh ftof --hipo-histos build/hipo-histos/hipo-histos
+#   scripts/compare_hipo_references.sh ltcc --variant field
 
 set -euo pipefail
 
@@ -39,7 +40,7 @@ REFERENCE_REPO="gemc/clas12Tags"
 REFERENCE_TAG="histo-reference"
 GEMC3_REPO="gemc/clas12-systems"
 GEMC3_TAG="histo-gemc3"
-SUPPORTED_SYSTEMS=(dc ec ftof pcal)
+SUPPORTED_SYSTEMS=(dc ec ftof ltcc pcal)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -140,9 +141,11 @@ for v in "${variants[@]}"; do
   echo
   echo "=== $system / $v ==="
   download "$REFERENCE_REPO" "$REFERENCE_TAG" "${system}_reference${suffix}.hipo"     "$ref_hipo"
-  download "$REFERENCE_REPO" "$REFERENCE_TAG" "${system}_reference${suffix}.txt"      "$out_dir/${system}_reference${suffix}.txt" || true
+  download "$REFERENCE_REPO" "$REFERENCE_TAG" "${system}_reference${suffix}.txt" \
+    "$out_dir/${system}_reference${suffix}.txt" || true
   download "$GEMC3_REPO"     "$GEMC3_TAG"     "${system}_gemc3${suffix}.hipo"         "$gemc3_hipo"
-  download "$GEMC3_REPO"     "$GEMC3_TAG"     "${system}_gemc3.txt"                   "$out_dir/${system}_gemc3.txt" || true
+  download "$GEMC3_REPO"     "$GEMC3_TAG"     "${system}_gemc3.txt" \
+    "$out_dir/${system}_gemc3.txt" || true
 
   compare_dir="$out_dir/compare_${v}"
   mkdir -p "$compare_dir/plots"

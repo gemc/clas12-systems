@@ -1,0 +1,26 @@
+diff --git a/src/Library/Providers/MySQLDataProvider.cc b/src/Library/Providers/MySQLDataProvider.cc
+index cfca857..159e381 100644
+--- a/src/Library/Providers/MySQLDataProvider.cc
++++ b/src/Library/Providers/MySQLDataProvider.cc
+@@ -98,7 +98,20 @@ bool ccdb::MySQLDataProvider::Connect(MySQLConnectionInfo connection)
+ 		Error(CCDB_ERROR_CONNECTION_INITIALIZATION, "MySQLDataProvider::Connect(DMySQLConnectionInfo)", "mysql_init() returned NULL, probably memory allocation problem");
+ 		return false;
+ 	}
+-	
++
++#ifdef LIBMARIADB
++	// mariadb-connector-c enforces TLS by default; clasdb.jlab.org has no SSL, so do not require it
++	// (fall back to an unencrypted connection, matching Oracle libmysqlclient's default behavior).
++	// Guarded to mariadb-connector-c: Oracle's client removed MYSQL_OPT_SSL_ENFORCE in 8.0 and does
++	// not enforce TLS by default, so it needs neither the option nor this code.
++	{
++		my_bool ccdb_ssl_enforce = 0;
++		mysql_options(mMySQLHnd, MYSQL_OPT_SSL_ENFORCE, &ccdb_ssl_enforce);
++		my_bool ccdb_ssl_verify = 0;
++		mysql_options(mMySQLHnd, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &ccdb_ssl_verify);
++	}
++#endif
++
+ 	//Try to connect to server
+ 	if(!mysql_real_connect (
+ 		mMySQLHnd,						//pointer to connection handler

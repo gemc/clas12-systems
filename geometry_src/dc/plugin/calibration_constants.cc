@@ -1,5 +1,6 @@
 // dc plugin
 #include "dc.h"
+#include "clas12_ccdb.h"
 
 // CCDB
 #include <CCDB/Calibration.h>
@@ -9,6 +10,7 @@
 // c++
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <memory>
 #include <string>
 #include <vector>
@@ -26,13 +28,14 @@ bool DC_digitization::loadConstantsImpl(int runno, std::string const& variation)
 
     log->info(1, " Loading DC constants for run ", runno, ", variation ", variation, " from ", conn);
 
-    std::unique_ptr<ccdb::Calibration> calib(ccdb::CalibrationGenerator::CreateCalibration(conn));
+    auto calib = clas12ccdb::connect(conn, log);
+    if (!calib) return false;
     std::vector<std::vector<double>>   data;
 
     // -- efficiency parameters
     snprintf(db, sizeof(db), "/calibration/dc/signal_generation/inefficiency:%d:%s",
              runno, variation.c_str());
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int sec = static_cast<int>(row[0]) - 1;
         int sl  = static_cast<int>(row[1]) - 1;
@@ -46,8 +49,7 @@ bool DC_digitization::loadConstantsImpl(int runno, std::string const& variation)
     // -- smearing parameters
     snprintf(db, sizeof(db), "/calibration/dc/signal_generation/doca_smearing:%d:%s",
              runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int sec = static_cast<int>(row[0]) - 1;
         int sl  = static_cast<int>(row[1]) - 1;
@@ -60,19 +62,16 @@ bool DC_digitization::loadConstantsImpl(int runno, std::string const& variation)
 
     // -- pressure correction for t2d: (current - reference) pressure
     snprintf(db, sizeof(db), "/calibration/dc/v2/ref_pressure:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     double ref_pressure = data[0][3];
 
     snprintf(db, sizeof(db), "/hall/weather/pressure:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     double dpressure = data[3][3] - ref_pressure;
 
     // -- time-to-distance parameters (pressure-corrected quadratic expansion)
     snprintf(db, sizeof(db), "/calibration/dc/v2/t2d_pressure:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int    sec = static_cast<int>(row[0]) - 1;
         int    sl  = static_cast<int>(row[1]) - 1;
@@ -108,8 +107,7 @@ bool DC_digitization::loadConstantsImpl(int runno, std::string const& variation)
 
     // -- T0 corrections
     snprintf(db, sizeof(db), "/calibration/dc/v2/t0:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int sec   = static_cast<int>(row[0]) - 1;
         int sl    = static_cast<int>(row[1]) - 1;
@@ -120,17 +118,28 @@ bool DC_digitization::loadConstantsImpl(int runno, std::string const& variation)
 
     // -- TDC jitter
     snprintf(db, sizeof(db), "/calibration/dc/time_jitter:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     dcc.jitter_period = data[0][3];
     dcc.jitter_phase  = static_cast<int>(data[0][4]);
     dcc.jitter_cycles = static_cast<int>(data[0][5]);
 
-    // -- DC core geometry: cell size per superlayer, used for wire position and doca
+    // -- DC core geometry: cell size per superlayer, used for wire position and doca.
+    //    GetAssignment is a separate ccdb call (not GetCalib), so guard it directly against a
+    //    query exception or an empty result rather than through clas12ccdb::loadTable.
     snprintf(db, sizeof(db), "/geometry/dc/superlayer:%d:%s", runno, variation.c_str());
-    std::unique_ptr<ccdb::Assignment> dcCore(calib->GetAssignment(db));
-    for (size_t row = 0; row < dcCore->GetRowsCount(); row++) {
-        dcc.dLayer[row] = dcCore->GetValueDouble(row, 6);
+    try {
+        std::unique_ptr<ccdb::Assignment> dcCore(calib->GetAssignment(db));
+        if (dcCore == nullptr || dcCore->GetRowsCount() == 0) {
+            log->warning("CCDB table <", db, "> returned no rows — digitized output would be empty. "
+                         "Check CCDB_CONNECTION.");
+            return false;
+        }
+        for (size_t row = 0; row < dcCore->GetRowsCount(); row++) {
+            dcc.dLayer[row] = dcCore->GetValueDouble(row, 6);
+        }
+    } catch (const std::exception& e) {
+        log->warning("CCDB query for table <", db, "> failed: ", e.what(), " — check CCDB_CONNECTION.");
+        return false;
     }
     for (int sl = 0; sl < 6; sl++) {
         dcc.dmaxsuperlayer[sl] = 2.0 * dcc.dLayer[sl];

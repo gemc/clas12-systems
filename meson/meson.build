@@ -173,10 +173,31 @@ if sys == 'darwin'
         zstd_prefix = run_command(brew, '--prefix', 'zstd', check : false).stdout().strip()
         openssl_prefix = run_command(brew, '--prefix', 'openssl', check : false).stdout().strip()
         # ccdb's src/CMakeLists.txt unconditionally enables MySQL (-DCCDB_MYSQL) via FindMySQL.cmake,
-        # which has no system MySQL to find on a bare macOS host. Homebrew's mysql-client is keg-only,
-        # so point FindMySQL at it through MYSQL_DIR: it locates ${MYSQL_DIR}/bin/mysql_config and
-        # derives the include/lib flags from it (no need to hardcode the libmysqlclient path/name).
-        mysql_prefix = run_command(brew, '--prefix', 'mysql-client', check : false).stdout().strip()
+        # which has no system MySQL to find on a bare macOS host. Homebrew's connectors are keg-only,
+        # so point FindMySQL at one through MYSQL_DIR: it locates ${MYSQL_DIR}/bin/{mysql,mariadb}_config
+        # and derives the include/lib flags from it (no need to hardcode the client library path/name).
+        #
+        # Connector choice matters: clasdb.jlab.org authenticates its reader account with
+        # mysql_native_password, which Oracle removed from the MySQL client library in 9.0 (the
+        # native_password client plugin is compiled out — not a missing .so, not a toggle). A ccdb
+        # linked against MySQL 9.x therefore cannot authenticate to clasdb; no ccdb source change can
+        # restore a capability removed from the client library. Preference order:
+        #   1. mariadb-connector-c — actively maintained, keeps mysql_native_password AND supports
+        #      caching_sha2_password, and ccdb's FindMySQL already accepts its mariadb_config.
+        #   2. mysql-client@8.4    — Oracle LTS that still ships native_password.
+        #   3. mysql-client / mysql — latest; only usable once clasdb migrates to caching_sha2_password.
+        # brew --prefix reports a path even for uninstalled formulae, so gate each candidate on
+        # fs.is_dir and take the first that is actually installed.
+        mysql_prefix = ''
+        foreach formula : ['mariadb-connector-c', 'mysql-client@8.4', 'mysql-client', 'mysql']
+            if mysql_prefix == ''
+                cand = run_command(brew, '--prefix', formula, check : false).stdout().strip()
+                if cand != '' and fs.is_dir(cand)
+                    mysql_prefix = cand
+                    message('Using CCDB MySQL/MariaDB connector prefix (' + formula + '): ' + cand)
+                endif
+            endif
+        endforeach
 
         if zstd_prefix != ''
             cmake_opts.append_link_args('-L' + zstd_prefix / 'lib')
@@ -188,9 +209,8 @@ if sys == 'darwin'
             message('Using openssl lib dir: ' + openssl_prefix / 'lib')
         endif
 
-        if mysql_prefix != '' and fs.is_dir(mysql_prefix)
+        if mysql_prefix != ''
             cmake_opts.add_cmake_defines({'MYSQL_DIR' : mysql_prefix})
-            message('Using mysql-client prefix: ' + mysql_prefix)
         endif
     endif
 endif

@@ -105,7 +105,9 @@ if [[ $USEDEVEL == "no" && -z "$COATJAVA_TAG" ]]; then
 	fi
 	LATEST_RELEASE=""
 	for attempt in 1 2 3; do
-		if LATEST_RELEASE=$(curl -fsS "${auth_header[@]}" \
+		# ${arr[@]+...} idiom: bash < 4.4 (macOS ships 3.2) treats an empty
+		# array expansion as an unbound variable under set -u.
+		if LATEST_RELEASE=$(curl -fsS ${auth_header[@]+"${auth_header[@]}"} \
 			-H "Accept: application/vnd.github+json" \
 			"https://api.github.com/repos/$REPO/releases/latest" | jq -r .tag_name) \
 			&& [[ -n "$LATEST_RELEASE" && "$LATEST_RELEASE" != "null" ]]; then

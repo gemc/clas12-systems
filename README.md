@@ -116,18 +116,19 @@ gemc dc.yaml -gui
 
 ## Reference Checks
 
-Use `scripts/compare_ascii_geometry.py` to compare generated GEMC3 ASCII geometry with the matching
-[`gemc/clas12Tags`](https://github.com/gemc/clas12Tags) reference files:
+Use `scripts/compare_ascii_databases.py` to compare generated GEMC3 ASCII databases (geometry and
+materials) with the matching [`gemc/clas12Tags`](https://github.com/gemc/clas12Tags) reference files:
 
 ```shell
-scripts/compare_ascii_geometry.py dc
+scripts/compare_ascii_databases.py dc
 ```
 
 With no system arguments, the script checks every local `geometry_src/<system>/<system>.py` implementation. The
 script maps GEMC2 and GEMC3 ASCII columns onto common geometry fields — name, mother, position, rotation, solid,
 dimensions, material, digitization (GEMC2 `sensitivity`), and identifier (GEMC2 `identifiers`, expanded to a
 canonical `name=value` form) — and compares only those field values by volume name, so formatting and
-column-order differences do not hide real geometry matches.
+column-order differences do not hide real geometry matches. Materials are compared the same way by material
+name (density, components, optical and scintillation properties), for systems that define custom materials.
 
 When any field differs the script prints the field-level mismatches and exits with status `1`; an all-match run
 exits with status `0`.
@@ -218,6 +219,46 @@ clas12_systems = [
 
 Add a detector name to this list only when `geometry_src/<system>/<system>.py` is ready to generate valid GEMC
 geometry.
+
+<br/>
+
+## CCDB Calibration Constants
+
+The detector digitization plugins (`dc`, `ecal`, `ftof`, `ltcc`) load their calibration constants from CCDB. By
+default they connect to the JLab database at `mysql://clas12reader@clasdb.jlab.org/clas12`; set the
+`CCDB_CONNECTION` environment variable to point at a different server or a local SQLite snapshot
+(`sqlite:///path/to/ccdb.sqlite`). Note this is the CCDB database, not the GEMC2 `clas12.sqlite` detector
+database — pointing at the latter yields empty constants. On any CCDB failure (unreachable host, wrong database,
+empty table) the plugins now abort the run with a clear error instead of silently producing empty digitized
+output.
+
+### MariaDB vs MySQL connector (macOS)
+
+The CCDB client library needs care on macOS. The `clas12reader` account authenticates with
+`mysql_native_password`, a scheme that Oracle **removed** from the MySQL client library in version 9.0 (it is
+SHA1-based and was deprecated for security). A CCDB linked against MySQL 9.x therefore cannot authenticate to
+clasdb and fails at connection time — this is a limitation of the client library, not a CCDB bug, and no CCDB
+source change can restore a capability compiled out of the library. Install a connector that still provides it:
+
+```shell
+brew install mariadb-connector-c   # preferred: maintained; supports native_password and caching_sha2_password
+# or
+brew install mysql-client@8.4      # Oracle LTS that still ships native_password
+```
+
+The Meson build selects the CCDB connector automatically (`meson/meson.build`), preferring, in order,
+`mariadb-connector-c`, `mysql-client@8.4`, `mysql-client`, then `mysql`, so a clean build links a working client
+with no manual relink. If only MySQL 9.x is installed, CCDB still builds but connecting to clasdb fails with a
+clear error until a compatible connector is installed (or the server account migrates to
+`caching_sha2_password`).
+
+There is a second, unrelated catch specific to MariaDB: `mariadb-connector-c` **enforces TLS by default**, while
+clasdb runs without SSL, so an out-of-the-box MariaDB build fails with `Error 2026 (SSL is required, but the
+server does not support it)`. The `ccdb` subproject is patched (via `subprojects/ccdb.wrap` `diff_files` →
+`subprojects/packagefiles/ccdb_ssl_no_enforce.patch`) to disable TLS enforcement when built against MariaDB,
+matching Oracle libmysqlclient's plaintext-fallback default. The patch is guarded with `#ifdef LIBMARIADB`, so it
+is a no-op for the MySQL/Oracle clients (which removed that option and do not enforce TLS anyway). With that in
+place, `mariadb-connector-c` connects to clasdb and is the recommended connector.
 
 <br/>
 

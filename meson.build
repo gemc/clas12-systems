@@ -127,6 +127,7 @@ clas12_systems = [
     'dc',
     'ec',
     'ftof',
+    'ltcc',
     'pcal',
 ]
 geometry_test_timeout = 600
@@ -166,7 +167,12 @@ subdir('hipo-histos')
 
 # ---------------------------------------------------------------------------
 # Build and install all registered shared-library plugins
+#
+# clas12_common_inc puts geometry_src/ on every plugin's include path so all detectors can share
+# headers such as clas12_ccdb.h (CCDB fetch helpers).
 # ---------------------------------------------------------------------------
+clas12_common_inc = include_directories('geometry_src')
+
 foreach plugin : clas12_plugins
     plugin_target = shared_library(
         plugin['name'],
@@ -174,7 +180,7 @@ foreach plugin : clas12_plugins
         install             : plugin.get('install', true),
         install_dir         : plugin.get('install_dir', get_option('libdir')),
         dependencies        : plugin.get('dependencies', []) + [gemc_gdata_dep],
-        include_directories : plugin.get('include_directories', []),
+        include_directories : plugin.get('include_directories', []) + [clas12_common_inc],
         link_with           : plugin.get('link_with', []),
         name_prefix         : '',
         name_suffix         : 'gplugin',
@@ -182,6 +188,30 @@ foreach plugin : clas12_plugins
     )
     clas12_plugin_targets += plugin_target
 endforeach
+
+# ---------------------------------------------------------------------------
+# CCDB connectivity smoke test
+#
+# A minimal standalone reproduction of the first calibration-table read done by the detector
+# plugins' loadConstantsImpl (the LTCC single-photoelectron table). It validates that the CCDB
+# client library selected for this build (see the connector selection in meson/meson.build and the
+# MariaDB TLS patch in subprojects/ccdb.wrap) can connect to the database and return constants.
+# The example exits 77 (Meson SKIP) when the connection cannot be opened, so a network-less CI run
+# does not fail; it fails only when connected but the table is empty or the query errors.
+# ---------------------------------------------------------------------------
+ccdb_connect_example = executable(
+    'ccdb_connect_example',
+    files('geometry_src/ccdb_connect_example.cc'),
+    dependencies : ccdb_dep,
+    install      : false,
+)
+test(
+    'ccdb_connect',
+    ccdb_connect_example,
+    suite   : 'clas12',
+    env     : test_env,
+    timeout : 60,
+)
 
 # ---------------------------------------------------------------------------
 # CLAS12 magnetic field maps

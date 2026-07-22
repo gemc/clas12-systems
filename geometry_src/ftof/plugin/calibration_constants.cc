@@ -1,4 +1,5 @@
 #include "ftof.h"
+#include "clas12_ccdb.h"
 
 // CCDB
 #include <CCDB/Calibration.h>
@@ -28,12 +29,13 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     log->info(1, " Loading FTOF constants for run ", runno, ", variation ", variation, " from ", conn);
 
-    std::unique_ptr<ccdb::Calibration> calib(ccdb::CalibrationGenerator::CreateCalibration(conn));
+    auto calib = clas12ccdb::connect(conn, log);
+    if (!calib) return false;
     std::vector<std::vector<double>> data;
 
     // attenuation length: columns [sector, panel, paddle, L, R]
     snprintf(db, sizeof(db), "/calibration/ftof/attenuation:%d:%s", runno, variation.c_str());
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -43,8 +45,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // effective velocity
     snprintf(db, sizeof(db), "/calibration/ftof/effective_velocity:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -53,6 +54,8 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     if (accountForHardwareStatus) {
+        // Optional table: an empty status set is acceptable (channels default to good), so this
+        // does not use clas12ccdb::loadTable, which treats an empty table as a fatal error.
         snprintf(db, sizeof(db), "/calibration/ftof/status:%d:%s", runno, variation.c_str());
         data.clear();
         calib->GetCalib(data, db);
@@ -66,8 +69,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // threshold
     snprintf(db, sizeof(db), "/calibration/ftof/threshold:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -77,8 +79,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // efficiency (clas12Tags copies column 3 into both sides)
     snprintf(db, sizeof(db), "/calibration/ftof/efficiency:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -88,8 +89,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // gain balance -> counts for MIP
     snprintf(db, sizeof(db), "/calibration/ftof/gain_balance:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -99,8 +99,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // time walk: 6 columns (5 constants each for L and R)
     snprintf(db, sizeof(db), "/calibration/ftof/time_walk:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -109,8 +108,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // energy-dependent time walk: 4 columns
     snprintf(db, sizeof(db), "/calibration/ftof/time_walk_exp:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -119,8 +117,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // position-dependent time walk: 2 columns
     snprintf(db, sizeof(db), "/calibration/ftof/time_walk_pos:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -129,8 +126,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // time offsets: LR, RF-paddle, paddle-to-paddle
     snprintf(db, sizeof(db), "/calibration/ftof/time_offsets:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -141,8 +137,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // tdc conversion factors
     snprintf(db, sizeof(db), "/calibration/ftof/tdc_conv:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -152,16 +147,14 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     // tdc jitter
     snprintf(db, sizeof(db), "/calibration/ftof/time_jitter:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     ftc.jitter_period = data[0][3];
     ftc.jitter_phase  = static_cast<int>(data[0][4]);
     ftc.jitter_cycles = static_cast<int>(data[0][5]);
 
     // fadc offsets
     snprintf(db, sizeof(db), "/calibration/ftof/fadc_offset:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec = static_cast<int>(row[0]) - 1;
         int ilay = static_cast<int>(row[1]) - 1;
@@ -175,8 +168,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
             ftc.tres[isec][ilay].resize(ftc.npaddles[ilay]);
 
     snprintf(db, sizeof(db), "/calibration/ftof/tres:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int isec    = static_cast<int>(row[0]) - 1;
         int ilay    = static_cast<int>(row[1]) - 1;

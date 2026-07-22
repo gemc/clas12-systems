@@ -13,6 +13,7 @@ if root_config.found()
             'dc/histos.cc',
             'ec/histos.cc',
             'ftof/histos.cc',
+            'ltcc/histos.cc',
             'pcal/histos.cc',
             'histos_compare.cc',
             'hipo-histos.cc',

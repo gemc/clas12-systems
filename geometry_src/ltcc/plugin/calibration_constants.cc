@@ -1,4 +1,5 @@
 #include "ltcc.h"
+#include "clas12_ccdb.h"
 
 // CCDB
 #include <CCDB/Calibration.h>
@@ -21,11 +22,12 @@ bool LTCC_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     log->info(1, " Loading LTCC constants for run ", runno, ", variation ", variation, " from ", conn);
 
-    std::unique_ptr<ccdb::Calibration> calib(ccdb::CalibrationGenerator::CreateCalibration(conn));
+    auto calib = clas12ccdb::connect(conn, log);
+    if (!calib) return false;
     std::vector<std::vector<double>> data;
 
     snprintf(db, sizeof(db), "/calibration/ltcc/spe:%d:%s", runno, variation.c_str());
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int sector = static_cast<int>(row[0]) - 1;
         int side = static_cast<int>(row[1]) - 1;
@@ -36,8 +38,7 @@ bool LTCC_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ltcc/time_offsets:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int sector = static_cast<int>(row[0]) - 1;
         int side = static_cast<int>(row[1]) - 1;
@@ -48,8 +49,7 @@ bool LTCC_digitization::loadConstantsImpl(int runno, std::string const& variatio
     }
 
     snprintf(db, sizeof(db), "/calibration/ltcc/tdc_conv:%d:%s", runno, variation.c_str());
-    data.clear();
-    calib->GetCalib(data, db);
+    if (!clas12ccdb::loadTable(calib.get(), db, data, log)) return false;
     for (const auto& row : data) {
         int sector = static_cast<int>(row[0]) - 1;
         int side = static_cast<int>(row[1]) - 1;

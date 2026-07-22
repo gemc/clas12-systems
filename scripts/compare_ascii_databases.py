@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare generated CLAS12 systems ASCII geometry with clas12Tags references."""
+"""Compare generated CLAS12 systems ASCII databases (geometry, materials) with clas12Tags references."""
 
 from __future__ import annotations
 
@@ -27,7 +27,45 @@ GEOMETRY_FIELDS = (
     "digitization",
     "identifier",
 )
-# Values used by either schema to mean "no digitization / no identifier".
+MATERIAL_FIELDS = (
+    "name",
+    "density",
+    "ncomponents",
+    "components",
+    "photonEnergy",
+    "indexOfRefraction",
+    "absorptionLength",
+    "reflectivity",
+    "efficiency",
+    "fastcomponent",
+    "slowcomponent",
+    "scintillationyield",
+    "resolutionscale",
+    "fasttimeconstant",
+    "slowtimeconstant",
+    "yieldratio",
+    "rayleigh",
+    "birksConstant",
+    "mie",
+    "mieforward",
+    "miebackward",
+    "mieratio",
+)
+SECTIONS = ("geometry", "materials")
+# GEMC2 hardcodes some materials in the engine (source/materials/cpp_materials.cc); the ones
+# also predefined by gemc3 (g4system/g4materials.cc) map onto their gemc3 names here.
+MATERIAL_NAME_MAP = {
+    "Air_Opt": "G4_AIR_Optical",
+}
+# gemc3 improvements over clas12Tags, accepted as intentional differences: these
+# (material name, field) pairs are skipped during the materials comparison.
+MATERIAL_FIELD_EXCEPTIONS = frozenset(
+    {
+        # finite glass absorption makes TIR-trapped photons die physically; clas12Tags has none
+        ("LTCCPMTGlass", "absorptionLength"),
+    }
+)
+# Values used by either schema to mean "no digitization / no identifier / unset material property".
 EMPTY_TOKENS = {"", "no", "none", "null"}
 # GEMC2 (clas12Tags) names solids by a short alias; pygemc emits the Geant4 class name.
 # Map the GEMC2 aliases onto their Geant4 classes so the two schemas compare equal.
@@ -54,7 +92,8 @@ SOLID_NAME_MAP = {
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Generate ASCII geometry for local systems and compare it with clas12Tags references.",
+        description="Generate ASCII databases (geometry, materials) for local systems "
+        "and compare them with clas12Tags references.",
     )
     parser.add_argument(
         "systems",
@@ -100,7 +139,23 @@ def discover_systems() -> list[str]:
 
 
 def normalize_field(value: str) -> str:
-    return " ".join(value.replace(",", " ").split())
+    tokens = value.replace(",", " ").split()
+    return " ".join(normalize_zero_token(token) for token in tokens)
+
+
+def normalize_zero_token(token: str) -> str:
+    """Map any zero-valued token to "0".
+
+    GEMC2 prints unset positions/rotations without units ("0 0 0") while pygemc
+    always carries units ("0*mm, 0*mm, 0*mm"); both collapse to "0 0 0".
+    """
+    magnitude = token.split("*", 1)[0]
+    try:
+        if float(magnitude) == 0.0:
+            return "0"
+    except ValueError:
+        pass
+    return token
 
 
 def normalize_solid(value: str) -> str:
@@ -112,6 +167,16 @@ def normalize_solid(value: str) -> str:
     """
     text = normalize_field(value)
     return SOLID_NAME_MAP.get(text, text)
+
+
+def normalize_material_name(value: str) -> str:
+    """Canonicalize a volume material name to its gemc3 name.
+
+    Materials that GEMC2 hardcodes in the engine and gemc3 predefines under a different name
+    map through :data:`MATERIAL_NAME_MAP`; anything else is returned unchanged.
+    """
+    text = normalize_field(value)
+    return MATERIAL_NAME_MAP.get(text, text)
 
 
 def normalize_digitization(value: str) -> str:
@@ -160,6 +225,37 @@ def normalize_identifier(value: str, schema: str) -> str:
     return " ".join(f"{name}={tag}" for name, tag in pairs)
 
 
+def normalize_material_number_token(token: str) -> str:
+    """Canonicalize a numeric token, preserving any ``*unit`` suffix.
+
+    GEMC2 (perl) drops trailing zeros ("1.543784") while pygemc keeps the raw source string
+    ("1.5437840"); both map to the shortest round-trip float representation.
+    """
+    magnitude, separator, unit = token.partition("*")
+    try:
+        number = float(magnitude)
+    except ValueError:
+        return token
+    return repr(number) + separator + unit
+
+
+def normalize_material_field(value: str) -> str:
+    tokens = value.replace(",", " ").split()
+    return " ".join(normalize_material_number_token(token) for token in tokens)
+
+
+def normalize_material_value(value: str) -> str:
+    """Canonicalize an optional material property; empty markers map to "".
+
+    clas12Tags defaults unset optical/scintillation lists to "none" and unset scalars to "-1";
+    pygemc writes "NULL" for both.
+    """
+    text = value.strip()
+    if text.lower() in EMPTY_TOKENS or text == "-1":
+        return ""
+    return normalize_material_field(text)
+
+
 def parse_pipe_rows(path: Path) -> list[list[str]]:
     rows = []
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -183,33 +279,121 @@ def old_geometry_record(row: list[str]) -> dict[str, str]:
         "rotation": normalize_field(row[4]),
         "solid": normalize_solid(row[6]),
         "dimensions": normalize_field(row[7]),
-        "material": normalize_field(row[8]),
+        "material": normalize_material_name(row[8]),
         "digitization": normalize_digitization(row[15]),
         "identifier": normalize_identifier(row[17], "clas12tags"),
     }
 
 
 def new_geometry_record(row: list[str]) -> dict[str, str]:
+    # A boolean solid lives in the solidsOpr column; clas12Tags encodes it in the
+    # type column as "Operation: a - b".
+    solid = normalize_solid(row[1])
+    solids_opr = normalize_digitization(row[16])
+    if solids_opr:
+        solid = normalize_field(f"Operation: {solids_opr}")
+
+    # A mirror surface lives in the mirror column; clas12Tags encodes it in the
+    # sensitivity column as "mirror: <surface>".
+    digitization = normalize_digitization(row[13])
+    mirror = normalize_digitization(row[17])
+    if not digitization and mirror:
+        digitization = f"mirror: {mirror}"
+
     return {
         "name": normalize_field(row[0]),
         "mother": normalize_field(row[4]),
         "description": normalize_field(row[19]),
         "position": normalize_field(row[5]),
         "rotation": normalize_field(row[6]),
-        "solid": normalize_solid(row[1]),
+        "solid": solid,
         "dimensions": normalize_field(row[2]),
         "material": normalize_field(row[3]),
-        "digitization": normalize_digitization(row[13]),
+        "digitization": digitization,
         "identifier": normalize_identifier(row[14], "pygemc"),
     }
 
 
-def semantic_records(path: Path, schema: str) -> dict[str, dict[str, str]]:
+def old_material_record(row: list[str]) -> dict[str, str]:
+    return {
+        "name": normalize_field(row[0]),
+        "description": normalize_field(row[1]),
+        "density": normalize_material_field(row[2]),
+        "ncomponents": normalize_field(row[3]),
+        "components": normalize_material_field(row[4]),
+        "photonEnergy": normalize_material_value(row[5]),
+        "indexOfRefraction": normalize_material_value(row[6]),
+        "absorptionLength": normalize_material_value(row[7]),
+        "reflectivity": normalize_material_value(row[8]),
+        "efficiency": normalize_material_value(row[9]),
+        "fastcomponent": normalize_material_value(row[10]),
+        "slowcomponent": normalize_material_value(row[11]),
+        "scintillationyield": normalize_material_value(row[12]),
+        "resolutionscale": normalize_material_value(row[13]),
+        "fasttimeconstant": normalize_material_value(row[14]),
+        "slowtimeconstant": normalize_material_value(row[15]),
+        "yieldratio": normalize_material_value(row[16]),
+        "rayleigh": normalize_material_value(row[17]),
+        "birksConstant": normalize_material_value(row[18]),
+        "mie": normalize_material_value(row[19]),
+        "mieforward": normalize_material_value(row[20]),
+        "miebackward": normalize_material_value(row[21]),
+        "mieratio": normalize_material_value(row[22]),
+    }
+
+
+def new_material_record(row: list[str]) -> dict[str, str]:
+    # pygemc does not store ncomponents; the composition string alternates
+    # component name and amount, so the pair count recovers it.
+    components = normalize_material_field(row[2])
+    ncomponents = str(len(components.split()) // 2)
+
+    # pygemc has no mie scattering fields; they compare as unset so any
+    # reference material carrying non-default mie values is reported.
+    return {
+        "name": normalize_field(row[0]),
+        "description": normalize_field(row[3]),
+        "density": normalize_material_field(row[1]),
+        "ncomponents": ncomponents,
+        "components": components,
+        "photonEnergy": normalize_material_value(row[4]),
+        "indexOfRefraction": normalize_material_value(row[5]),
+        "absorptionLength": normalize_material_value(row[6]),
+        "reflectivity": normalize_material_value(row[7]),
+        "efficiency": normalize_material_value(row[8]),
+        "fastcomponent": normalize_material_value(row[9]),
+        "slowcomponent": normalize_material_value(row[10]),
+        "scintillationyield": normalize_material_value(row[11]),
+        "resolutionscale": normalize_material_value(row[12]),
+        "fasttimeconstant": normalize_material_value(row[13]),
+        "slowtimeconstant": normalize_material_value(row[14]),
+        "yieldratio": normalize_material_value(row[15]),
+        "rayleigh": normalize_material_value(row[17]),
+        "birksConstant": normalize_material_value(row[16]),
+        "mie": "",
+        "mieforward": "",
+        "miebackward": "",
+        "mieratio": "",
+    }
+
+
+def semantic_records(path: Path, schema: str, section: str) -> dict[str, dict[str, str]]:
     records = {}
     for row in parse_pipe_rows(path):
-        if schema == "clas12tags":
+        if section == "materials":
+            if schema == "clas12tags":
+                required_row_size(row, 23, path)
+                record = old_material_record(row)
+            else:
+                required_row_size(row, 18, path)
+                record = new_material_record(row)
+        elif schema == "clas12tags":
             required_row_size(row, 18, path)
             record = old_geometry_record(row)
+            # CopyOf volumes reference CAD meshes that are not imported yet;
+            # they will be compared once the mesh import lands.
+            if record["solid"].startswith("CopyOf"):
+                continue
         else:
             required_row_size(row, 20, path)
             record = new_geometry_record(row)
@@ -220,17 +404,22 @@ def semantic_records(path: Path, schema: str) -> dict[str, dict[str, str]]:
 def semantic_differences(
     generated: dict[str, dict[str, str]],
     reference: dict[str, dict[str, str]],
+    fields: tuple[str, ...],
+    kind: str,
+    skip_fields: frozenset[tuple[str, str]] = frozenset(),
 ) -> list[str]:
     differences = []
 
     for name in sorted(set(reference) - set(generated)):
-        differences.append(f"{name}: missing generated volume")
+        differences.append(f"{name}: missing generated {kind}")
 
     for name in sorted(set(generated) - set(reference)):
-        differences.append(f"{name}: extra generated volume")
+        differences.append(f"{name}: extra generated {kind}")
 
     for name in sorted(set(reference) & set(generated)):
-        for field in GEOMETRY_FIELDS:
+        for field in fields:
+            if (name, field) in skip_fields:
+                continue
             reference_value = reference[name][field]
             generated_value = generated[name][field]
             if reference_value != generated_value:
@@ -263,9 +452,9 @@ def run_system(system: str, args: argparse.Namespace, output_dir: Path) -> Path:
     return system_output_dir
 
 
-def variation_files(directory: Path, system: str) -> dict[str, Path]:
+def variation_files(directory: Path, system: str, section: str) -> dict[str, Path]:
     files = {}
-    prefix = f"{system}__geometry_"
+    prefix = f"{system}__{section}_"
     suffix = ".txt"
     for path in sorted(directory.glob(f"{prefix}*{suffix}")):
         variation = path.name[len(prefix) : -len(suffix)]
@@ -278,20 +467,62 @@ def compare_variation(
     variation: str,
     generated: Path,
     reference: Path,
+    section: str,
 ) -> tuple[bool, str]:
-    generated_records = semantic_records(generated, "pygemc")
-    reference_records = semantic_records(reference, "clas12tags")
-    differences = semantic_differences(generated_records, reference_records)
+    generated_records = semantic_records(generated, "pygemc", section)
+    reference_records = semantic_records(reference, "clas12tags", section)
+    fields = GEOMETRY_FIELDS if section == "geometry" else MATERIAL_FIELDS
+    kind = "volume" if section == "geometry" else "material"
+    skip_fields = MATERIAL_FIELD_EXCEPTIONS if section == "materials" else frozenset()
+    differences = semantic_differences(generated_records, reference_records, fields, kind, skip_fields)
 
+    # CI parses these per-variation lines; a passing detail must start with "ok".
     if not differences:
-        return True, f"{system}/{variation}: ok ({len(generated_records)} geometry rows)"
+        return True, f"{system}/{variation}: ok ({len(generated_records)} {section} rows)"
 
     message = (
-        f"{system}/{variation}: differs "
+        f"{system}/{variation}: {section} differs "
         f"({len(generated_records)} generated rows, {len(reference_records)} reference rows)"
     )
     message += "\n" + "\n".join(differences)
     return False, message
+
+
+def compare_section(
+    system: str,
+    section: str,
+    generated_dir: Path,
+    reference_dir: Path,
+) -> tuple[bool, list[str]]:
+    generated_files = variation_files(generated_dir, system, section)
+    reference_files = variation_files(reference_dir, system, section)
+
+    # Systems built entirely from standard Geant4 materials ship no materials files.
+    if not generated_files and not reference_files:
+        return True, []
+
+    messages = []
+    if set(generated_files) != set(reference_files):
+        missing = sorted(set(reference_files) - set(generated_files))
+        extra = sorted(set(generated_files) - set(reference_files))
+        if missing:
+            messages.append(f"{system}: missing generated {section} variations: {', '.join(missing)}")
+        if extra:
+            messages.append(f"{system}: extra generated {section} variations: {', '.join(extra)}")
+        return False, messages
+
+    ok = True
+    for variation in sorted(generated_files):
+        variation_ok, message = compare_variation(
+            system,
+            variation,
+            generated_files[variation],
+            reference_files[variation],
+            section,
+        )
+        messages.append(message)
+        ok = ok and variation_ok
+    return ok, messages
 
 
 def compare_system(system: str, args: argparse.Namespace, output_dir: Path) -> tuple[bool, list[str]]:
@@ -300,31 +531,12 @@ def compare_system(system: str, args: argparse.Namespace, output_dir: Path) -> t
     if not reference_dir.is_dir():
         return False, [f"{system}: missing reference directory {reference_dir}"]
 
-    generated_files = variation_files(generated_dir, system)
-    reference_files = variation_files(reference_dir, system)
-    generated_variations = set(generated_files)
-    reference_variations = set(reference_files)
-
-    messages = []
-    if generated_variations != reference_variations:
-        missing = sorted(reference_variations - generated_variations)
-        extra = sorted(generated_variations - reference_variations)
-        if missing:
-            messages.append(f"{system}: missing generated variations: {', '.join(missing)}")
-        if extra:
-            messages.append(f"{system}: extra generated variations: {', '.join(extra)}")
-        return False, messages
-
     ok = True
-    for variation in sorted(generated_variations):
-        variation_ok, message = compare_variation(
-            system,
-            variation,
-            generated_files[variation],
-            reference_files[variation],
-        )
-        messages.append(message)
-        ok = ok and variation_ok
+    messages = []
+    for section in SECTIONS:
+        section_ok, section_messages = compare_section(system, section, generated_dir, reference_dir)
+        messages.extend(section_messages)
+        ok = ok and section_ok
     return ok, messages
 
 
@@ -375,7 +587,7 @@ def main() -> int:
 
     if failures:
         sys.stdout.flush()
-        print(f"Geometry comparison failed for: {', '.join(failures)}", file=sys.stderr)
+        print(f"ASCII database comparison failed for: {', '.join(failures)}", file=sys.stderr)
         return 1
     return 0
 

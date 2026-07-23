@@ -9,10 +9,9 @@
 // Connection string: the CCDB_CONNECTION environment variable, or clasdb by default. Optional
 // argv: <run> <variation> (defaults: 11 default).
 //
-// Exit codes follow the Meson 'exitcode' test protocol:
-//   0   connected and read at least one row               -> pass
-//   77  the connection could not be opened                -> SKIP (e.g. clasdb unreachable offline)
-//   1   connected but the table was empty or query failed -> fail
+// Exit codes: 0 on success (connected and read at least one row); non-zero on any failure — a
+// connection that cannot be opened, a query error, or an empty table. The test fails hard so a
+// broken CCDB client/connector (or an unreachable database) is caught rather than passed over.
 
 #include <CCDB/Calibration.h>
 #include <CCDB/CalibrationGenerator.h>
@@ -37,11 +36,8 @@ int main(int argc, char** argv) {
     try {
         calib.reset(ccdb::CalibrationGenerator::CreateCalibration(conn));
     } catch (const std::exception& e) {
-        // Could not open the connection (unreachable host, offline build). Report as a skip so a
-        // network-less CI run does not fail; a real connector/auth problem surfaces the same way,
-        // so run this locally against a reachable clasdb to validate the connector.
-        std::cerr << "SKIP: could not open CCDB connection <" << conn << ">: " << e.what() << "\n";
-        return 77;
+        std::cerr << "FAIL: could not open CCDB connection <" << conn << ">: " << e.what() << "\n";
+        return 1;
     }
 
     std::vector<std::vector<double>> data;

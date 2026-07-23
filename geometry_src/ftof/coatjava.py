@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import zipfile
 
 
 # FTOFGeant4Factory emits coatjava short solid names; GEMC3 expects the Geant4 names.
@@ -106,19 +107,39 @@ def compiled_factory_dir(detector_dir):
     return None
 
 
-def run_factory(ftof_dir, variation, run_number):
-    """Run the local coatjava factory and return the generated volume table path."""
-    ftof_path = Path(ftof_dir)
-    output = ftof_path / f"ftof__volumes_{variation}.txt"
-    coatjava_dir = ftof_path.parent / "coatjava"
-    # The installed coatjava tree keeps required jars split across these library groups.
-    classpath = os.pathsep.join(
+def coatjava_classpath(detector_dir):
+    """Return the coatjava classpath after checking that its installation is complete."""
+    coatjava_dir = Path(detector_dir).parent / "coatjava"
+    clas_lib_dir = coatjava_dir / "lib" / "clas"
+    required_class = "org/jlab/detector/calib/utils/DatabaseConstantProvider.class"
+    for jar in clas_lib_dir.glob("coat-libs-*.jar"):
+        try:
+            with zipfile.ZipFile(jar) as archive:
+                archive.getinfo(required_class)
+        except (KeyError, OSError, zipfile.BadZipFile):
+            continue
+        break
+    else:
+        raise RuntimeError(
+            f"coatjava is missing or incomplete at {coatjava_dir}.\n"
+            "From the clas12-systems repository root, reinstall it with:\n"
+            "  ./geometry_src/install_coatjava.sh -r -l"
+        )
+
+    return os.pathsep.join(
         [
-            str(coatjava_dir / "lib" / "clas" / "*"),
+            str(clas_lib_dir / "*"),
             str(coatjava_dir / "lib" / "services" / "*"),
             str(coatjava_dir / "lib" / "utils" / "*"),
         ]
     )
+
+
+def run_factory(ftof_dir, variation, run_number):
+    """Run the local coatjava factory and return the generated volume table path."""
+    ftof_path = Path(ftof_dir)
+    output = ftof_path / f"ftof__volumes_{variation}.txt"
+    classpath = coatjava_classpath(ftof_path)
     compiled_factory = compiled_factory_dir(ftof_path)
     if compiled_factory:
         command = [java_command(), "-cp", classpath + os.pathsep + compiled_factory, "CoatjavaFactory"]

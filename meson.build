@@ -196,8 +196,8 @@ endforeach
 # plugins' loadConstantsImpl (the LTCC single-photoelectron table). It validates that the CCDB
 # client library selected for this build (see the connector selection in meson/meson.build and the
 # MariaDB TLS patch in subprojects/ccdb.wrap) can connect to the database and return constants.
-# The example exits 77 (Meson SKIP) when the connection cannot be opened, so a network-less CI run
-# does not fail; it fails only when connected but the table is empty or the query errors.
+# It fails hard on any problem — a connection that cannot be opened, a query error, or an empty
+# table — so a broken CCDB client/connector or an unreachable database is caught, not passed over.
 # ---------------------------------------------------------------------------
 ccdb_connect_example = executable(
     'ccdb_connect_example',

@@ -1,0 +1,56 @@
+# LTCC CAD placement for GEMC3's gcad CAD factory (see ../../../../src/examples/basic/cad).
+# Generated once by `build_cad_meshes.py --yaml`; after that this file is the source of truth.
+# To resolve a Geant4 volume overlap, nudge the offending volume's `position` by a few mm.
+
+system:     stls
+experiment: clas12
+variation:  default
+cad_dir:    stls
+extension:  stl
+
+defaults:
+  position:         0*mm, 0*mm, 1273.7*mm
+  g4placement_type: passive
+  style:            1
+
+volumes:
+  - name: WC_S
+    mother: ltccS3
+    material: ltcc_WC_material
+    color: aa9999
+    mirror: ltcc_AlMgF2
+    identifier: "sector: 1, side: 2, segment: 1"
+    position: 0.390826*cm, 58.2255*cm, 446.167*cm
+    rotation: 7.72*deg, -30.8*deg, 30.8*deg
+  - name: WC_M
+    mother: ltccS3
+    material: ltcc_WC_material
+    color: aa9999
+    mirror: ltcc_AlMgF2
+    identifier: "sector: 1, side: 2, segment: 11"
+    position: 76.6113*cm, 184.572*cm, 384.362*cm
+    rotation: 26.04*deg, -27.19*deg, 27.19*deg
+  - name: WC_L
+    mother: ltccS3
+    material: ltcc_WC_material
+    color: aa9999
+    mirror: ltcc_AlMgF2
+    identifier: "sector: 1, side: 2, segment: 13"
+    position: 93.0427*cm, 212.743*cm, 368.448*cm
+    rotation: 30.48*deg, -24*deg, 25.99*deg
+  - name: backwall
+    material: G4_Al
+    color: ccccdd
+    rotation: 180*deg, 0*deg, 60*deg
+  - name: rightwall
+    material: G4_Al
+    color: ccddcc
+    rotation: 180*deg, 0*deg, 60*deg
+  - name: leftwall
+    material: G4_Al
+    color: ccddee
+    rotation: 180*deg, 0*deg, 60*deg
+  - name: nose
+    material: ltcc_nose
+    color: cc8844
+    rotation: 180*deg, 0*deg, 120*deg

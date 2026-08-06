@@ -19,6 +19,16 @@ PYTHONPATH=../../../../pygemc/src python3 ../build_cad_meshes.py --yaml   # rewr
   solid **plate** with the central gap between the top and bottom bars filled in (see below).
 - **`rightwall`** — the sector-3 frame right side, one watertight solid merged from the wall panel `S1-RW`
   and its two rails `S1-BRB` (bottom) and `S1-TRB` (top).
+- **`leftwall`** — the sector-3 frame left side: `rightwall` mirrored across the detector centre plane
+  (see below). No new source pieces; it is generated from `rightwall`.
+- **`nose`** — the nose support structure: five pieces (`Epoxy`, `FrontPlate`, `Mount`, `NFrame`,
+  `Nose`) approximated by **one simple filled solid** (see below). Its material `ltcc_nose` is a
+  homogenised steel+epoxy mix (see below and `../materials.py`).
+  **Note:** the original nose CAD drawings have been *modified* (simplified and trimmed) to fit the nose
+  inside the sector box — it is a deliberate approximation, not a faithful copy of the parts. It is clipped
+  to the sector and the side-wall regions are cut out of it with a clearance gap, so no part sticks out
+  through or touches the left/right walls (verified with Geant4's overlap checker — the nose reports no
+  overlap with any volume).
 
 The merged-wall source pieces are read straight from `clas12Tags/geometry_source/ltcc/cad` and
 `cadTempRemoved` (see the `WALLS` table in `build_cad_meshes.py`); they are not stored in this repository.
@@ -59,6 +69,73 @@ non-manifold artefacts). The result is a clean 144-facet trapezoidal plate (genu
 outline still follows the frame's outer edges; only the hole in the middle is now filled.
 
 `rightwall` does not set `fill`: its `S1-RW` part is already a full wall panel, so there is no gap.
+
+### Mirror-image walls (`MIRROR_WALLS`)
+
+`leftwall` is `rightwall` reflected across the detector centre plane. The LTCC sector spans phi = 90..150°,
+so the centre line is phi = 120°; that plane contains the beam axis (z), and the walls are placed on z
+(`0, 0, 1273.7 mm`), so the reflection leaves the placement translation unchanged. The copy is therefore
+given the **same** placement (rotation + position) as its source and only its *mesh* is reflected.
+
+Passive placement maps a local point to the world as `world = rot⁻¹ · local + T`, so to get a world
+reflection `M` (across phi = 120°) while keeping the same `rot`, the mesh is reflected in its own frame by
+`S = rot · M · rot⁻¹` (`_mirror_in_local_frame`). The reflection reverses the triangle winding, so
+`_save_solid` re-orients it outward. The result places at phi = 90..120° — the exact mirror of the
+rightwall's 120..150°, with an identical z–r profile.
+
+### Resolving wall-corner overlaps (`resolve_wall_overlaps`)
+
+The side-wall panels meet the backwall at the frame corners, where the simplified solids interpenetrate a
+few mm (Geant4 flagged `leftwall`/`rightwall` overlapping `backwall` by ~5–6 mm at large radius). All walls
+share the same placement, so this is fixed directly: the `backwall` (dilated by `WALL_CLEARANCE` for a small
+gap) is boolean-subtracted from each side wall (`WALL_OVERLAP_CUTS`), trimming ~0.2 L off each corner. Run
+after the walls are built and before the nose. Verified with Geant4's overlap checker: no overlap remains
+between any of the walls, the nose, or the cones.
+
+### The `nose` (stacked-trapezoid approximation + homogenised material)
+
+The nose support is five pieces that do **not** boolean-union cleanly (the union shattered into >100
+components) and whose internal structure does not matter. The detailed outer surface (a CGAL alpha wrap)
+was too busy and a single convex hull too plain, so the nose is approximated by a few simple solids that are
+boolean-unioned:
+
+- the compact **head** pieces (`Epoxy`, `FrontPlate`, `Mount`, `Nose`) are pooled and sliced into
+  overlapping segments along their long (PCA) axis (boundaries `NOSE_SEG_EDGES`, **finer toward the top** so
+  the narrowing neck and shoulder get more structure), each segment convex-hulled;
+- **`NFrame`** is a big flat frame, so it is reconstructed as a single **flat slab** (`flatten_pca`, full
+  extent) instead of being chopped into the hull — the segmented hull made a weird stepped shape there and
+  cut into its material; the flat slab keeps that part flat and covers the frame fully.
+
+The whole solid is then **clipped to the sector** (`NOSE_SECTOR`, a world phi wedge a couple of degrees
+inside the phi = 90 / 150 side walls) by boolean-intersecting it with a wedge prism, so the convex/flat
+approximations cannot stick out through the left/right walls (the raw parts span only phi 93..147, so this
+clips approximation bloat, not real material).
+
+Finally, to guarantee it does not interfere with the side walls, the already-built `rightwall`/`leftwall`
+(dilated by `NOSE_CLEARANCE` for a small gap) are **boolean-subtracted** from the nose, and only the largest
+resulting component is kept (the cut can shave off a small fragment). Verified with Geant4's overlap checker
+(`gemc ... -check_overlaps=1`): the nose reports **no overlap** with any volume. The result is one watertight
+solid, genus 2 (the two wall slots).
+
+All five pieces are read from clas12Tags `cadTempRemoved/` (the nose bracket is the clas12Tags `Nose` mesh);
+nothing is vendored in this repository.
+
+**Volume comparison** (cured part volumes vs the approximated solid):
+
+| part | volume |
+|------|--------|
+| Epoxy | 15.3 L |
+| FrontPlate + Mount + NFrame + Nose (steel) | 40.4 L |
+| **sum of parts (material)** | **55.7 L** |
+| **`nose.stl` (head hull + flat NFrame, sector-clipped, walls cut out)** | **88.8 L** (parts × 1.59) |
+
+**Material `ltcc_nose`** — the composition is set by the **epoxy : steel volume ratio** of the parts,
+**27.4 % epoxy / 72.6 % steel**. With `rho_epoxy = 1.2` and `rho_steel = 8.0 g/cm³` this is, by mass,
+**epoxy 5.36 % / steel 94.64 %** (the epoxy split into C/H/O by a typical resin ratio 76/8/16), for a total
+real mass of ~342 kg. Because the approximated solid (88.8 L) is ~1.6× the real material volume, the density
+is set to **conserve that mass** over it: `342 kg / 88.8 L = 3.85 g/cm³` — the value used. (The packed
+volume-ratio density would be `0.274·1.2 + 0.726·8.0 = 6.14 g/cm³`, but applying it to the oversized solid
+would overstate the mass ~1.3×, so it is not used.)
 
 ### Why `S1-TRB` needs `cure`, not `full`
 

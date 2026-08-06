@@ -1,6 +1,6 @@
 experiment: clas12
 runno: 11
-nthreads: 1
+#nthreads: 1
 log_every: 100-0
 
 gfields:
@@ -17,7 +17,7 @@ gsystem:
   - name: ltcc
     factory: sqlite
     digitization: ltcc
-  - name: ltcc_cad
+  - name: stls
     factory: CAD
     variation: default
 

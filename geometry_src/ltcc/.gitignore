@@ -1,0 +1,13 @@
+# Local-only CAD sources for build_cad_meshes.py (raw meshes from clas12Tags cad/cadTempRemoved).
+# Not committed: the built products live in stls/. Obtain from clas12Tags if you need to rebuild.
+stl_sources/
+
+# Temporary comparison meshes copied into stls/ by build_individuals() (INDIVIDUALS in
+# build_cad_meshes.py). Remove the INDIVIDUALS block when the merged-vs-raw comparison is done. All the
+# raw parts come from clas12Tags, so these copies are reproducible and not committed.
+stls/S1-*.stl
+stls/Epoxy.stl
+stls/FrontPlate.stl
+stls/Mount.stl
+stls/NFrame.stl
+stls/Nose.stl

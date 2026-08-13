@@ -169,11 +169,8 @@ def define_materials(configuration):
     pmt_glass.photonEnergy = PENERGY_PMT
     pmt_glass.efficiency = QE_PMT
     pmt_glass.indexOfRefraction = RINDEX_PMT
-    # gemc3 improvement over GEMC2 (which defined no absorption in the glass and relied on
-    # a 100-step optical photon kill): a finite absorption length lets photons trapped in
-    # the window by total internal reflection die physically. 300 cm is the fused-silica
-    # scale in the visible/UV; the ~cm direct window path is unaffected (>99% transmission).
-    pmt_glass.absorptionLength = " ".join(["300.0*cm"] * len(PENERGY_PMT.split()))
+    # Once a photon enters the PMT window, treat it as detected and absorb it within the glass.
+    pmt_glass.absorptionLength = " ".join(["1.0*cm"] * len(PENERGY_PMT.split()))
     pmt_glass.publish(configuration)
 
     # GEMC2 quirk preserved: materials.pl reuses the LTCCPMTGlass hash without

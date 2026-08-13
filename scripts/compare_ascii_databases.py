@@ -57,14 +57,6 @@ SECTIONS = ("geometry", "materials")
 MATERIAL_NAME_MAP = {
     "Air_Opt": "G4_AIR_Optical",
 }
-# gemc3 improvements over clas12Tags, accepted as intentional differences: these
-# (material name, field) pairs are skipped during the materials comparison.
-MATERIAL_FIELD_EXCEPTIONS = frozenset(
-    {
-        # finite glass absorption makes TIR-trapped photons die physically; clas12Tags has none
-        ("LTCCPMTGlass", "absorptionLength"),
-    }
-)
 # Values used by either schema to mean "no digitization / no identifier / unset material property".
 EMPTY_TOKENS = {"", "no", "none", "null"}
 # GEMC2 (clas12Tags) names solids by a short alias; pygemc emits the Geant4 class name.
@@ -289,9 +281,17 @@ def new_geometry_record(row: list[str]) -> dict[str, str]:
     # A boolean solid lives in the solidsOpr column; clas12Tags encodes it in the
     # type column as "Operation: a - b".
     solid = normalize_solid(row[1])
+    dimensions = normalize_field(row[2])
     solids_opr = normalize_digitization(row[16])
     if solids_opr:
         solid = normalize_field(f"Operation: {solids_opr}")
+
+    # A copied volume stores its source in copyOf; clas12Tags encodes it in the
+    # type column as "CopyOf <source>" and prints its unused dimensions as zero.
+    copy_of = normalize_digitization(row[15])
+    if copy_of:
+        solid = normalize_field(f"CopyOf {copy_of}")
+        dimensions = "0"
 
     # A mirror surface lives in the mirror column; clas12Tags encodes it in the
     # sensitivity column as "mirror: <surface>".
@@ -307,7 +307,7 @@ def new_geometry_record(row: list[str]) -> dict[str, str]:
         "position": normalize_field(row[5]),
         "rotation": normalize_field(row[6]),
         "solid": solid,
-        "dimensions": normalize_field(row[2]),
+        "dimensions": dimensions,
         "material": normalize_field(row[3]),
         "digitization": digitization,
         "identifier": normalize_identifier(row[14], "pygemc"),
@@ -390,10 +390,6 @@ def semantic_records(path: Path, schema: str, section: str) -> dict[str, dict[st
         elif schema == "clas12tags":
             required_row_size(row, 18, path)
             record = old_geometry_record(row)
-            # CopyOf volumes reference CAD meshes that are not imported yet;
-            # they will be compared once the mesh import lands.
-            if record["solid"].startswith("CopyOf"):
-                continue
         else:
             required_row_size(row, 20, path)
             record = new_geometry_record(row)
@@ -406,7 +402,6 @@ def semantic_differences(
     reference: dict[str, dict[str, str]],
     fields: tuple[str, ...],
     kind: str,
-    skip_fields: frozenset[tuple[str, str]] = frozenset(),
 ) -> list[str]:
     differences = []
 
@@ -418,8 +413,6 @@ def semantic_differences(
 
     for name in sorted(set(reference) & set(generated)):
         for field in fields:
-            if (name, field) in skip_fields:
-                continue
             reference_value = reference[name][field]
             generated_value = generated[name][field]
             if reference_value != generated_value:
@@ -473,8 +466,7 @@ def compare_variation(
     reference_records = semantic_records(reference, "clas12tags", section)
     fields = GEOMETRY_FIELDS if section == "geometry" else MATERIAL_FIELDS
     kind = "volume" if section == "geometry" else "material"
-    skip_fields = MATERIAL_FIELD_EXCEPTIONS if section == "materials" else frozenset()
-    differences = semantic_differences(generated_records, reference_records, fields, kind, skip_fields)
+    differences = semantic_differences(generated_records, reference_records, fields, kind)
 
     # CI parses these per-variation lines; a passing detail must start with "ok".
     if not differences:

@@ -194,13 +194,13 @@ def define_materials(configuration):
     # the NFrame body. Composition is set by the epoxy:steel VOLUME ratio of those pieces, 27.4% epoxy /
     # 72.6% steel (see stls/notes.md); with rho_epoxy = 1.2 and rho_steel = 8.0 g/cm^3 that is steel 94.64% /
     # epoxy 5.36% by mass (epoxy split into C/H/O by a typical resin ratio 76/8/16), giving a total mass of
-    # ~342 kg. The approximated solid (88.8 L, after the flat NFrame slab fills the open frame, the whole is
+    # ~342 kg. The approximated solid (88.5 L, after the flat NFrame slab fills the open frame, the whole is
     # clipped to the sector and the side walls are cut out of it) is ~1.6x the real material volume (55.7 L),
-    # so the density is set to CONSERVE that mass over it: 341.6 kg / 88.8 L = 3.85 g/cm^3 (using the packed
+    # so the density is set to CONSERVE that mass over it: 341.6 kg / 88.5 L = 3.86 g/cm^3 (using the packed
     # 6.14 g/cm^3 would overstate the mass ~1.6x).
     nose = GMaterial("ltcc_nose")
     nose.description = "LTCC nose: 27.4% epoxy + 72.6% steel by volume, mass-conserving over the solid"
-    nose.density = 3.85
+    nose.density = 3.86
     nose.addMaterialWithFractionalMass("G4_STAINLESS-STEEL", 0.9464)
     nose.addMaterialWithFractionalMass("G4_C", 0.0408)
     nose.addMaterialWithFractionalMass("G4_H", 0.0043)

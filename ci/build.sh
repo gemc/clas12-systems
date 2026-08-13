@@ -62,6 +62,7 @@ setup_log="$PWD/logs/setup.log"
 compile_log="$PWD/logs/compile.log"
 install_log="$PWD/logs/install.log"
 test_log="$PWD/logs/test.log"
+geo_log="$PWD/logs/geometry.log"
 
 {
   echo " > geant4-config  : $(command -v geant4-config) $(geant4-config --version)"
@@ -107,3 +108,11 @@ fi
 echo "   - Successful: $(grep 'Ok:' "$test_log" | awk '{sum += $2} END {print sum + 0}')" | tee -a "$test_log"
 echo "   - Failures:   $(grep 'Fail:' "$test_log" | awk '{sum += $2} END {print sum + 0}')" | tee -a "$test_log"
 echo " > Complete test log: $test_log"
+
+echo " > buidling geometry" | tee "$geo_log"
+if ! ./generate_geometry.zsh \
+  >> "$geo_log" 2>&1; then
+  echo " > generate_geometry.zsh failed. Log:"
+  cat "$geo_log"
+  exit 1
+fi

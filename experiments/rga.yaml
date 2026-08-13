@@ -2,26 +2,21 @@ experiment: clas12
 runno: 11
 nthreads: 1
 log_every: 100-0
-
-gfields:
-  - name: clas12
-    type: clas12-cmag
-    solenoid: Symm_solenoid_r601_phi1_z1201_13June2018
-    torus: Symm_torus_r2501_phi16_z251_24Apr2018
-    solenoid_scale: -1
-    torus_scale: -1
-
-global_field: clas12
+sql: gemc.sqlite
 
 gsystem:
   - name: dc
+    factory: sqlite
+    digitization: dc
   - name: ec
-
-gstreamer:
-  - format: csv
-    filename: dc
-  - format: hipo
-    filename: dc
+    factory: sqlite
+    digitization: ecal
+  - name: pcal
+    factory: sqlite
+    digitization: ecal
+  - name: ltcc
+    factory: sqlite
+    digitization: ltcc
 
 phys_list: FTFP_BERT
 

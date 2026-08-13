@@ -17,9 +17,6 @@ gsystem:
   - name: ltcc
     factory: sqlite
     digitization: ltcc
-  - name: stls
-    factory: CAD
-    variation: default
 
 gstreamer:
   - format: csv

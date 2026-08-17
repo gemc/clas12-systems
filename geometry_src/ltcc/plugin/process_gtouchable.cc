@@ -7,6 +7,16 @@
 #include "G4OpticalPhoton.hh"
 
 
+namespace {
+
+bool is_optical_photon_step(const G4Step* step) {
+    return step != nullptr && step->GetTrack() != nullptr &&
+           step->GetTrack()->GetDefinition() == G4OpticalPhoton::OpticalPhotonDefinition();
+}
+
+} // namespace
+
+
 bool LTCC_digitization::valid_index(int sector, int side, int segment) {
     return sector >= 1 && sector <= LTCCConstants::NSECT &&
            side >= 1 && side <= LTCCConstants::NSIDE &&
@@ -22,18 +32,20 @@ LTCC_digitization::PhotonKey LTCC_digitization::photon_key(const std::vector<GId
 bool LTCC_digitization::decisionToSkipHit(double energy, const G4Step* thisStep) {
     if (thisStep == nullptr || thisStep->GetTrack() == nullptr) return true;
 
-    if (thisStep->GetTrack()->GetDefinition() == G4OpticalPhoton::OpticalPhotonDefinition()) {
-        return false;
-    }
+    if (is_optical_photon_step(thisStep)) return false;
     return GDynamicDigitization::decisionToSkipHit(energy);
+}
+
+
+bool LTCC_digitization::shouldStopTrackAfterHitImpl(const G4Step* thisStep) const {
+    return is_optical_photon_step(thisStep);
 }
 
 
 std::vector<std::shared_ptr<GTouchable>> LTCC_digitization::processTouchableImpl(
     std::shared_ptr<GTouchable> gtouchable, G4Step* thisStep) {
 
-    if (thisStep != nullptr && thisStep->GetTrack() != nullptr &&
-        thisStep->GetTrack()->GetDefinition() == G4OpticalPhoton::OpticalPhotonDefinition()) {
+    if (is_optical_photon_step(thisStep)) {
 
         double probability = 1.0;
         auto* volume = thisStep->GetPreStepPoint()->GetTouchableHandle()->GetVolume();

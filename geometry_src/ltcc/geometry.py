@@ -550,7 +550,7 @@ def build_ell_mirrors(configuration, pars, presence, gas):
 
 
 # ---------------------------------------------------------------------------
-# pmts.pl — PMTs (sensitive) and their internal light stoppers
+# pmts.pl — sensitive PMTs
 # ---------------------------------------------------------------------------
 def build_pmts(configuration, pars, presence):
     for n in range(1, NMIRRORS + 1):
@@ -582,22 +582,6 @@ def build_pmts(configuration, pars, presence):
                 pmt.digitization = "ltcc"
                 pmt.set_identifier("sector", sector, "side", side_id, "segment", n)
                 pmt.publish(configuration)
-
-            # To prevent photons getting trapped inside the pmts, smaller
-            # cylinders (light stoppers) without optical properties are placed
-            # inside the pmts.
-            stop_radius = fstr(float(radius) - 0.01)
-            for side in ("right", "left"):
-                stopper = new_volume(
-                    f"pmt_light_stopper_s{sector}{side}_{n}", f"pmt_s{sector}{side}_{n}"
-                )
-                stopper.description = f"PMT light stopper {side} {n}"
-                stopper.color = "558844"
-                stopper.solid = "G4Tubs"
-                stopper.parameters = f"0*cm, {stop_radius}*cm, 0.5*cm, 0*deg, 360*deg"
-                stopper.material = "G4_Galactic"
-                stopper.style = 1
-                stopper.publish(configuration)
 
 
 # ---------------------------------------------------------------------------

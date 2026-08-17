@@ -35,6 +35,7 @@ public:
     [[nodiscard]] bool apply_efficiency_impl(GHit* ghit, GDigitizedData* digitizedData) override;
 
     bool decisionToSkipHit(double energy, const G4Step* thisStep) override;
+    [[nodiscard]] bool shouldStopTrackAfterHitImpl(const G4Step* thisStep) const override;
 
     LTCCConstants ltccc;
 
@@ -42,7 +43,7 @@ private:
     using PhotonKey = std::tuple<int, int, int, int>;
 
     double fadc_precision = 0.0625;
-    std::map<PhotonKey, double> photonDetectionProbability;
+    inline static thread_local std::map<PhotonKey, double> photonDetectionProbability;
 
     [[nodiscard]] double convert_to_precision(double time) const {
         return static_cast<int>(time / fadc_precision) * fadc_precision;

@@ -169,7 +169,8 @@ def define_materials(configuration):
     pmt_glass.photonEnergy = PENERGY_PMT
     pmt_glass.efficiency = QE_PMT
     pmt_glass.indexOfRefraction = RINDEX_PMT
-    # Once a photon enters the PMT window, treat it as detected and absorb it within the glass.
+    # Preserve the GEMC2 glass absorption length. GEMC3 terminates each optical-photon track after
+    # its first LTCC PMT hit is stored, so trapping prevention does not depend on this value.
     pmt_glass.absorptionLength = " ".join(["1.0*cm"] * len(PENERGY_PMT.split()))
     pmt_glass.publish(configuration)
 

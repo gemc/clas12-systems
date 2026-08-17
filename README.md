@@ -22,8 +22,8 @@
 [badge-hipo-histos]: https://github.com/gemc/clas12-systems/actions/workflows/hipo_histos_compare.yml/badge.svg
 [badge-macos-tarball]: https://github.com/gemc/clas12-systems/actions/workflows/macos_tarball.yml/badge.svg
 [workflow-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml
-[workflow-ascii-geometry]: https://github.com/gemc/clas12-systems/actions/workflows/ascii_geometry_compare.yml
-[workflow-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy_and_test.yml
+[workflow-ascii-geometry]: https://github.com/gemc/clas12-systems/actions/workflows/clas12_geo_compare.yml
+[workflow-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy.yml
 [workflow-sanitize]: https://github.com/gemc/clas12-systems/actions/workflows/sanitize.yml
 [workflow-codeql]: https://github.com/gemc/clas12-systems/actions/workflows/codeql.yml
 [workflow-doxygen]: https://github.com/gemc/clas12-systems/actions/workflows/doxygen.yml
@@ -379,6 +379,8 @@ Known DC expectations:
 ## CI And Releases
 
 CI builds this repository against GEMC base images published by [`gemc/src`](https://github.com/gemc/src).
+The [workflow guide](.github/workflows/README.md) documents triggers, deployment authorization,
+cross-repository contracts, permissions, retries, and expected skipped runs.
 
 Relevant automation:
 
@@ -414,6 +416,7 @@ contributing guide. The image is deleted automatically when the pull request is 
 
 ## Documentation
 
+- [CI workflow guide](.github/workflows/README.md)
 - [GEMC homepage](https://gemc.github.io/home/)
 - [Python API repository](https://github.com/gemc/pygemc)
 - [GEMC2 / CLAS12 repository](https://github.com/gemc/clas12Tags)

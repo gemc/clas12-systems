@@ -1,0 +1,20 @@
+name: Test after gemc/src deploy
+
+run-name: ${{ inputs.triggered_by }}
+
+permissions:
+  contents: read
+  packages: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      triggered_by:
+        description: What triggered this run
+        required: false
+        default: Triggered by gemc/src deploy
+
+jobs:
+  test:
+    name: CLAS12 compatibility test
+    uses: ./.github/workflows/test.yml

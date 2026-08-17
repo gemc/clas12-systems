@@ -52,6 +52,12 @@ MATERIAL_FIELDS = (
     "mieratio",
 )
 SECTIONS = ("geometry", "materials")
+# Volumes that gemc3 intentionally does not generate. gemc3 stops optical photons at the
+# stepping-action level, so it drops GEMC2's per-PMT light-stopper volumes. Skip them on both
+# sides so the reference's stoppers are not reported as missing generated volumes.
+SKIP_VOLUME_PREFIXES = {
+    "ltcc": ("pmt_light_stopper_",),
+}
 # GEMC2 hardcodes some materials in the engine (source/materials/cpp_materials.cc); the ones
 # also predefined by gemc3 (g4system/g4materials.cc) map onto their gemc3 names here.
 MATERIAL_NAME_MAP = {
@@ -455,6 +461,20 @@ def variation_files(directory: Path, system: str, section: str) -> dict[str, Pat
     return files
 
 
+def drop_skipped_volumes(
+    records: dict[str, dict[str, str]], system: str
+) -> dict[str, dict[str, str]]:
+    """Remove records whose name starts with a skipped prefix for ``system``."""
+    prefixes = SKIP_VOLUME_PREFIXES.get(system)
+    if not prefixes:
+        return records
+    return {
+        name: record
+        for name, record in records.items()
+        if not name.startswith(prefixes)
+    }
+
+
 def compare_variation(
     system: str,
     variation: str,
@@ -462,8 +482,8 @@ def compare_variation(
     reference: Path,
     section: str,
 ) -> tuple[bool, str]:
-    generated_records = semantic_records(generated, "pygemc", section)
-    reference_records = semantic_records(reference, "clas12tags", section)
+    generated_records = drop_skipped_volumes(semantic_records(generated, "pygemc", section), system)
+    reference_records = drop_skipped_volumes(semantic_records(reference, "clas12tags", section), system)
     fields = GEOMETRY_FIELDS if section == "geometry" else MATERIAL_FIELDS
     kind = "volume" if section == "geometry" else "material"
     differences = semantic_differences(generated_records, reference_records, fields, kind)

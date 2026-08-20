@@ -34,7 +34,9 @@ bool FTOF_digitization::loadTTImpl([[maybe_unused]] int runno, [[maybe_unused]] 
         int paddle  = static_cast<int>(row[5]);
         int pmt     = static_cast<int>(row[6]);
 
-        tt->addGElectronicWithIdentity({sector, panel, paddle, pmt}, GElectronic(crate, slot, channel, 0));
+        tt->addGElectronicWithIdentity(
+            {sector, panel, paddle, pmt},
+            GElectronic(crate, slot, channel, GElectronic::ComparisonMode::crate));
     }
 
     translationTable = tt;

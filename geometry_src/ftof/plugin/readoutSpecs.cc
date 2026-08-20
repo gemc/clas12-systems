@@ -5,7 +5,7 @@
 
 
 bool FTOF_digitization::defineReadoutSpecsImpl() {
-    double timeWindow    = gopts->getScalarDouble("ftof_timeWindow");
+    double timeWindow    = gopts->getRequiredScalarDouble("ftof_timeWindow");
     double gridStartTime = 0;
     double maxStep       = 1.0 * CLHEP::cm;
 

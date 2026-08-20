@@ -21,7 +21,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
     char db[256];
 
     ftc = FTOFConstants{};
-    ftc.outputRAW = gopts->getScalarInt("ftof_outputRAW");
+    ftc.outputRAW = gopts->getRequiredScalarInt("ftof_outputRAW");
     accountForHardwareStatus = gopts->getSwitch("ftof_accountForHardwareStatus");
 
     ftc.pmtFactor = std::sqrt(1.0 + 1.0 / (ftc.pmtDynodeGain - 1.0));

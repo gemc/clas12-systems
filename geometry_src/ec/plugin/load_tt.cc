@@ -34,7 +34,9 @@ bool ECAL_digitization::loadTTImpl([[maybe_unused]] int runno, [[maybe_unused]] 
         int pmt     = static_cast<int>(row[5]);
         int order   = static_cast<int>(row[6]);
 
-        tt->addGElectronicWithIdentity({sector, layer, pmt, order}, GElectronic(crate, slot, channel, 0));
+        tt->addGElectronicWithIdentity(
+            {sector, layer, pmt, order},
+            GElectronic(crate, slot, channel, GElectronic::ComparisonMode::crate));
     }
 
     translationTable = tt;

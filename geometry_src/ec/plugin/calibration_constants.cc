@@ -21,7 +21,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     char db[256];
 
     ecc = ECALConstants{};
-    ecc.outputRAW = gopts->getScalarInt("ecal_outputRAW");
+    ecc.outputRAW = gopts->getRequiredScalarInt("ecal_outputRAW");
     accountForHardwareStatus = gopts->getSwitch("ecal_accountForHardwareStatus");
 
     ecc.ADC_GeV_to_evio = 1.0 / 10000.0;

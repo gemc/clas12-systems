@@ -39,8 +39,9 @@ bool DC_digitization::loadTTImpl(int runno, std::string const& variation) {
         int sl     = static_cast<int>(row[4]);
         int layer  = static_cast<int>(row[5]);
         int wire   = static_cast<int>(row[6]);
-        // mode 2: full crate/slot/channel resolution
-        tt->addGElectronicWithIdentity({sector, sl, layer, wire}, GElectronic(crate, slot, chan, 2));
+        tt->addGElectronicWithIdentity(
+            {sector, sl, layer, wire},
+            GElectronic(crate, slot, chan, GElectronic::ComparisonMode::crate_slot_channel));
     }
 
     translationTable = tt;

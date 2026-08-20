@@ -4,7 +4,7 @@
 #include <CLHEP/Units/SystemOfUnits.h>
 
 bool DC_digitization::defineReadoutSpecsImpl() {
-	double timeWindow    = gopts->getScalarDouble("dc_timeWindow");
+	double timeWindow    = gopts->getRequiredScalarDouble("dc_timeWindow");
 	double gridStartTime = 0;
 	double maxStep       = 1 * CLHEP::mm;
 

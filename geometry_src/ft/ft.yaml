@@ -1,0 +1,37 @@
+experiment: clas12
+runno: 11
+nthreads: 1
+log_every: 100-0
+
+gfields:
+  - name: clas12
+    type: clas12-cmag
+    solenoid: Symm_solenoid_r601_phi1_z1201_13June2018
+    torus: Symm_torus_r2501_phi16_z251_24Apr2018
+    solenoid_scale: -1
+    torus_scale: -1
+
+global_field: clas12
+
+gsystem:
+  - name: ft
+    factory: sqlite
+
+gstreamer:
+  - format: csv
+    filename: ft
+  - format: hipo
+    filename: ft
+
+phys_list: FTFP_BERT
+
+g4camera:
+  theta: 120*deg
+  phi: 150*deg
+
+gparticle:
+  - name: e-
+    p: 2000*MeV
+    theta: 3*deg
+    phi: 10*deg
+    delta_phi: 180*deg

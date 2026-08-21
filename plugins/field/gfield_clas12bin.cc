@@ -70,7 +70,7 @@ void GField_Clas12BinFactory::load_field_definitions(GFieldDefinition gfd) {
 	const std::string torus_name    = param_string("torus", "");
 
 	if (solenoid_name.empty() && torus_name.empty()) {
-		log->error(ERR_WRONG_FIELD_NOT_FOUND,
+		log->error(gfields::ERR_WRONG_FIELD_NOT_FOUND,
 		           "GField_Clas12BinFactory: neither 'solenoid' nor 'torus' map specified for field <",
 		           gfield_definitions.name, ">. Exiting.");
 	}
@@ -86,7 +86,8 @@ void GField_Clas12BinFactory::load_field_definitions(GFieldDefinition gfd) {
 	if (!solenoid_name.empty()) {
 		const std::string path = field_dir + "/" + solenoid_name + ".dat";
 		if (!std::ifstream(path).good()) {
-			log->error(ERR_WRONG_FIELD_NOT_FOUND, "GField_Clas12BinFactory: solenoid map not found: ", path);
+			log->error(gfields::ERR_WRONG_FIELD_NOT_FOUND,
+			           "GField_Clas12BinFactory: solenoid map not found: ", path);
 		}
 		log->info(1, "Loading CLAS12 solenoid map: ", path);
 		solenoidPtr = initializeSolenoid(path.c_str());
@@ -100,7 +101,8 @@ void GField_Clas12BinFactory::load_field_definitions(GFieldDefinition gfd) {
 	if (!torus_name.empty()) {
 		const std::string path = field_dir + "/" + torus_name + ".dat";
 		if (!std::ifstream(path).good()) {
-			log->error(ERR_WRONG_FIELD_NOT_FOUND, "GField_Clas12BinFactory: torus map not found: ", path);
+			log->error(gfields::ERR_WRONG_FIELD_NOT_FOUND,
+			           "GField_Clas12BinFactory: torus map not found: ", path);
 		}
 		log->info(1, "Loading CLAS12 torus map: ", path);
 		torusPtr = initializeTorus(path.c_str());

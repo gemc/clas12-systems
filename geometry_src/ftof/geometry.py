@@ -75,7 +75,7 @@ def publish_ftof_volume(configuration, volume):
     else:
         raise ValueError(f"Unexpected FTOF coatjava volume name: {volume.name}")
 
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
 
 
 def base_volume(volume):
@@ -84,7 +84,6 @@ def base_volume(volume):
     gvolume.mother = volume.mother
     gvolume.position = volume.position
     gvolume.rotations = [volume.rotation]
-    gvolume.g4placement_type = "passive"
     gvolume.solid = volume.solid
     gvolume.parameters = volume.dimensions
     return gvolume

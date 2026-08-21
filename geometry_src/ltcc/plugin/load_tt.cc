@@ -35,7 +35,9 @@ bool LTCC_digitization::loadTTImpl(int runno, std::string const& variation) {
         int segment = static_cast<int>(row[5]);
         int order = row.size() > 6 ? static_cast<int>(row[6]) : 0;
 
-        tt->addGElectronicWithIdentity({sector, side, segment, order}, GElectronic(crate, slot, channel, 0));
+        tt->addGElectronicWithIdentity(
+            {sector, side, segment, order},
+            GElectronic(crate, slot, channel, GElectronic::ComparisonMode::crate));
     }
 
     translationTable = tt;

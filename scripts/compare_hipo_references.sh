@@ -17,7 +17,7 @@
 # Usage:
 #   scripts/compare_hipo_references.sh <detector> [options]
 #
-#   <detector>                  one of: dc ec ftof ltcc pcal
+#   <detector>                  one of: dc ec ft ftof ltcc pcal
 #
 # Options:
 #   --variant <field|nofield|both>   which reference variant(s) to compare (default: both)
@@ -40,7 +40,7 @@ REFERENCE_REPO="gemc/clas12Tags"
 REFERENCE_TAG="histo-reference"
 GEMC3_REPO="gemc/clas12-systems"
 GEMC3_TAG="histo-gemc3"
-SUPPORTED_SYSTEMS=(dc ec ftof ltcc pcal)
+SUPPORTED_SYSTEMS=(dc ec ft ftof ltcc pcal)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 

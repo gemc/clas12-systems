@@ -1,22 +1,24 @@
 experiment: clas12
 runno: 11
-nthreads: 1
 log_every: 100-0
 sql: gemc.sqlite
 
 gsystem:
   - name: dc
     factory: sqlite
-    digitization: dc
   - name: ec
     factory: sqlite
     digitization: ecal
+  - name: ft
+    factory: sqlite
+  - name: ftof
+    factory: sqlite
+  - name: ltcc
+    factory: sqlite
   - name: pcal
     factory: sqlite
     digitization: ecal
-  - name: ltcc
-    factory: sqlite
-    digitization: ltcc
+
 
 phys_list: FTFP_BERT
 

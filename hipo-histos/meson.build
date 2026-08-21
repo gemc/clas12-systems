@@ -12,6 +12,7 @@ if root_config.found()
             'common.cc',
             'dc/histos.cc',
             'ec/histos.cc',
+            'ft/histos.cc',
             'ftof/histos.cc',
             'ltcc/histos.cc',
             'pcal/histos.cc',

@@ -126,6 +126,7 @@ sql_db = meson.project_build_root() / 'clas12.db'
 clas12_systems = [
     'dc',
     'ec',
+    'ft',
     'ftof',
     'ltcc',
     'pcal',

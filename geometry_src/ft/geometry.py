@@ -25,77 +25,6 @@ def fstr(value):
     return "0" if formatted == "-0" else formatted
 
 
-def values_with_unit(values, unit):
-    """Return a comma-separated GEMC parameter sequence."""
-    return ", ".join(f"{fstr(value)}*{unit}" for value in values)
-
-
-def polycone(inner, outer, z, start=0.0, delta=360.0):
-    """Return GEMC3 parameters for a G4Polycone (z, inner radius, outer radius)."""
-    count = len(z)
-    return ", ".join(
-        [f"{fstr(start)}*deg", f"{fstr(delta)}*deg", f"{count}*counts"]
-        + [f"{fstr(value)}*mm" for value in z]
-        + [f"{fstr(value)}*mm" for value in inner]
-        + [f"{fstr(value)}*mm" for value in outer]
-    )
-
-
-def publish_volume(
-    configuration,
-    name,
-    description,
-    solid,
-    parameters,
-    *,
-    mother="root",
-    position=(0.0, 0.0, 0.0),
-    rotation="0*deg, 0*deg, 0*deg",
-    color="ffffff",
-    material="G4_AIR",
-    visible=1,
-    style=1,
-    digitization=None,
-    identifiers=(),
-):
-    """Create and publish one GEMC2-compatible passive-placement volume."""
-    volume = GVolume(name)
-    volume.mother = mother
-    volume.description = description
-    volume.position = values_with_unit(position, "mm") if not isinstance(position, str) else position
-    volume.rotations = [rotation]
-    volume.g4placement_type = "passive"
-    volume.color = color
-    volume.solid = solid
-    volume.parameters = parameters
-    volume.material = material
-    volume.visible = visible
-    volume.style = style
-    if digitization:
-        volume.digitization = digitization
-    if identifiers:
-        volume.set_identifier(*identifiers)
-    volume.publish(configuration)
-
-
-def tube(inner, outer, half_length, start=0.0, delta=360.0):
-    """Return GEMC parameters for a G4Tubs."""
-    return ", ".join(
-        (
-            f"{fstr(inner)}*mm",
-            f"{fstr(outer)}*mm",
-            f"{fstr(half_length)}*mm",
-            f"{fstr(start)}*deg",
-            f"{fstr(delta)}*deg",
-        )
-    )
-
-
-def box(dx, dy, dz):
-    """Return GEMC parameters for a G4Box."""
-    return values_with_unit((dx, dy, dz), "mm")
-
-
 def build_ft(configuration):
     """Publish FTCAL, FTHODO, and the variation-dependent FTTRK."""
     build_calorimeter(configuration)
@@ -231,29 +160,29 @@ B_LINE_Z5 = B_LINE_Z4 - 0.01 + 20.0
 
 def build_calorimeter(configuration):
     """Build the FTCAL crystals, supports, insulation, shell, and beamline pieces."""
-    publish_volume(
-        configuration,
-        "ft_cal",
-        "ft calorimeter",
-        "G4Polycone",
-        polycone(
-            (B_LINE_MR, B_LINE_MR, B_LINE_MR, T_PLATE_MR, B_LINE_OR, B_LINE_OR),
-            (700.0, 700.0, 238.0, 238.0, 238.0, 238.0),
-            (O_SHELL_Z[0], 2098.0, T_PLATE_ZM, B_LINE_Z4, B_LINE_Z4, B_LINE_Z5),
-        ),
-        color="1437f4",
-        visible=0,
+    volume = GVolume("ft_cal", value_formatter=fstr)
+    volume.description = "ft calorimeter"
+    volume.color = "1437f4"
+    volume.make_polycone(
+        zplane=(O_SHELL_Z[0], 2098.0, T_PLATE_ZM, B_LINE_Z4, B_LINE_Z4, B_LINE_Z5),
+        iradius=(B_LINE_MR, B_LINE_MR, B_LINE_MR, T_PLATE_MR, B_LINE_OR, B_LINE_OR),
+        oradius=(700.0, 700.0, 238.0, 238.0, 238.0, 238.0),
     )
-    publish_volume(
-        configuration,
-        "ft_calCrystalsMother",
-        "ft calorimeter crystal volume",
-        "G4Polycone",
-        polycone((I_DISK_IR,) * 2, (O_DISK_OR,) * 2, (I_DISK_Z - I_DISK_LT, I_DISK_Z + I_DISK_LT)),
-        mother="ft_cal",
-        color="1437f4",
-        style=0,
+    volume.material = "G4_AIR"
+    volume.visible = 0
+    volume.publish_passive(configuration)
+    volume = GVolume("ft_calCrystalsMother", value_formatter=fstr)
+    volume.description = "ft calorimeter crystal volume"
+    volume.mother = "ft_cal"
+    volume.color = "1437f4"
+    volume.make_polycone(
+        zplane=(I_DISK_Z - I_DISK_LT, I_DISK_Z + I_DISK_LT),
+        iradius=(I_DISK_IR,) * 2,
+        oradius=(O_DISK_OR,) * 2,
     )
+    volume.material = "G4_AIR"
+    volume.style = 0
+    volume.publish_passive(configuration)
     build_crystals(configuration)
     build_calorimeter_flux(configuration)
     build_calorimeter_copper(configuration)
@@ -275,92 +204,72 @@ def build_crystals(configuration):
             suffix = f"h{ix}_v{iy}"
             mother_name = f"ft_cal_cr_motherVolume_{suffix}"
             wrap_name = f"ft_cal_cr_wrap_{suffix}"
-            publish_volume(
-                configuration,
-                mother_name,
-                f"Mother Volume for crystal h:{ix}, v:{iy}",
-                "G4Box",
-                box(VWIDTH / 2, VWIDTH / 2, V_LENGTH / 2),
-                mother="ft_calCrystalsMother",
-                position=(x, y, V_FRONT + V_LENGTH / 2),
-                color="838EDE",
-                style=0,
-            )
-            publish_volume(
-                configuration,
-                f"ft_cal_cr_apd_{suffix}",
-                f"apd for crystal h:{ix}, v:{iy}",
-                "G4Box",
-                box(CWIDTH / 2, CWIDTH / 2, S_LENGTH / 2),
-                mother="ft_calCrystalsMother",
-                position=(x, y, S_FRONT + S_LENGTH / 2),
-                color="99CC66",
-                material="ft_peek",
-            )
-            publish_volume(
-                configuration,
-                wrap_name,
-                f"wrapping for crystal h:{ix}, v:{iy}",
-                "G4Box",
-                box((CWIDTH + 0.130) / 2, (CWIDTH + 0.130) / 2, V_LENGTH / 2),
-                mother=mother_name,
-                color="838EDE",
-                material="G4_MYLAR",
-            )
-            publish_volume(
-                configuration,
-                f"ft_cal_cr_{suffix}",
-                f"PbWO4 crystal h:{ix}, v:{iy}",
-                "G4Box",
-                box(CWIDTH / 2, CWIDTH / 2, CLENGTH / 2),
-                mother=wrap_name,
-                position=(0, 0, FLENGTH / 2),
-                color="836FFF",
-                material="G4_PbWO4",
-                digitization="ft_cal",
-                identifiers=("ih", ix, "iv", iy),
-            )
-            publish_volume(
-                configuration,
-                f"ft_cal_cr_ledHousing_{suffix}",
-                f"Led Housing for crystal h:{ix}, v:{iy}",
-                "G4Box",
-                box(CWIDTH / 2, CWIDTH / 2, FLENGTH / 2),
-                mother=wrap_name,
-                position=(0, 0, -V_LENGTH / 2 + FLENGTH / 2),
-                color="EEC900",
-                material="ft_peek",
-            )
+            volume = GVolume(mother_name, value_formatter=fstr)
+            volume.description = f"Mother Volume for crystal h:{ix}, v:{iy}"
+            volume.mother = "ft_calCrystalsMother"
+            volume.set_position(x, y, V_FRONT + V_LENGTH / 2)
+            volume.color = "838EDE"
+            volume.make_box(VWIDTH / 2, VWIDTH / 2, V_LENGTH / 2)
+            volume.material = "G4_AIR"
+            volume.style = 0
+            volume.publish_passive(configuration)
+            volume = GVolume(f"ft_cal_cr_apd_{suffix}", value_formatter=fstr)
+            volume.description = f"apd for crystal h:{ix}, v:{iy}"
+            volume.mother = "ft_calCrystalsMother"
+            volume.set_position(x, y, S_FRONT + S_LENGTH / 2)
+            volume.color = "99CC66"
+            volume.make_box(CWIDTH / 2, CWIDTH / 2, S_LENGTH / 2)
+            volume.material = "ft_peek"
+            volume.publish_passive(configuration)
+            volume = GVolume(wrap_name, value_formatter=fstr)
+            volume.description = f"wrapping for crystal h:{ix}, v:{iy}"
+            volume.mother = mother_name
+            volume.color = "838EDE"
+            volume.make_box((CWIDTH + 0.130) / 2, (CWIDTH + 0.130) / 2, V_LENGTH / 2)
+            volume.material = "G4_MYLAR"
+            volume.publish_passive(configuration)
+            volume = GVolume(f"ft_cal_cr_{suffix}", value_formatter=fstr)
+            volume.description = f"PbWO4 crystal h:{ix}, v:{iy}"
+            volume.mother = wrap_name
+            volume.set_position(0, 0, FLENGTH / 2)
+            volume.color = "836FFF"
+            volume.make_box(CWIDTH / 2, CWIDTH / 2, CLENGTH / 2)
+            volume.material = "G4_PbWO4"
+            volume.digitization = "ft_cal"
+            volume.set_identifier(*("ih", ix, "iv", iy))
+            volume.publish_passive(configuration)
+            volume = GVolume(f"ft_cal_cr_ledHousing_{suffix}", value_formatter=fstr)
+            volume.description = f"Led Housing for crystal h:{ix}, v:{iy}"
+            volume.mother = wrap_name
+            volume.set_position(0, 0, -V_LENGTH / 2 + FLENGTH / 2)
+            volume.color = "EEC900"
+            volume.make_box(CWIDTH / 2, CWIDTH / 2, FLENGTH / 2)
+            volume.material = "ft_peek"
+            volume.publish_passive(configuration)
 
 
 def build_calorimeter_flux(configuration):
     """Build the crystal-back and upstream flux planes."""
-    publish_volume(
-        configuration,
-        "ft_cal_flux",
-        "ft flux",
-        "G4Tubs",
-        tube(B_DISK_IR, B_DISK_OR, 0.5),
-        mother="ft_calCrystalsMother",
-        position=(0, 0, V_FRONT + V_LENGTH + 0.5),
-        color="aa0088",
-        material="G4_Galactic",
-        digitization="flux",
-        identifiers=("id", 3),
-    )
-    publish_volume(
-        configuration,
-        "moller_disk_1",
-        "Moller Disk 1",
-        "G4Tubs",
-        tube(56.0, 150.0, 0.05),
-        position=(0, 0, O_SHELL_Z[0] - 0.05),
-        color="aa0088",
-        material="G4_Galactic",
-        visible=0,
-        digitization="flux",
-        identifiers=("id", 2),
-    )
+    volume = GVolume("ft_cal_flux", value_formatter=fstr)
+    volume.description = "ft flux"
+    volume.mother = "ft_calCrystalsMother"
+    volume.set_position(0, 0, V_FRONT + V_LENGTH + 0.5)
+    volume.color = "aa0088"
+    volume.make_tube(B_DISK_IR, B_DISK_OR, 0.5)
+    volume.material = "G4_Galactic"
+    volume.digitization = "flux"
+    volume.set_identifier(*("id", 3))
+    volume.publish_passive(configuration)
+    volume = GVolume("moller_disk_1", value_formatter=fstr)
+    volume.description = "Moller Disk 1"
+    volume.set_position(0, 0, O_SHELL_Z[0] - 0.05)
+    volume.color = "aa0088"
+    volume.make_tube(56.0, 150.0, 0.05)
+    volume.material = "G4_Galactic"
+    volume.visible = 0
+    volume.digitization = "flux"
+    volume.set_identifier(*("id", 2))
+    volume.publish_passive(configuration)
 
 
 def build_calorimeter_copper(configuration):
@@ -373,58 +282,46 @@ def build_calorimeter_copper(configuration):
         ("back_plate", "back_plate", B_PLATE_Z, B_DISK_IR, B_DISK_OR, B_PLATE_TN, "G4_AIR", "7F9A65"),
     )
     for name, description, z, inner, outer, half_length, material, color in pieces:
-        publish_volume(
-            configuration,
-            f"ft_cal_{name}",
-            f"ft {description}",
-            "G4Tubs",
-            tube(inner, outer, half_length),
-            mother="ft_calCrystalsMother",
-            position=(0, 0, z),
-            color=color,
-            material=material,
-        )
+        volume = GVolume(f"ft_cal_{name}", value_formatter=fstr)
+        volume.description = f"ft {description}"
+        volume.mother = "ft_calCrystalsMother"
+        volume.set_position(0, 0, z)
+        volume.color = color
+        volume.make_tube(inner, outer, half_length)
+        volume.material = material
+        volume.publish_passive(configuration)
 
 
 def build_calorimeter_motherboard(configuration):
     """Build the rear motherboard disk, ears, and LED plate."""
-    publish_volume(
-        configuration,
-        "ft_cal_back_mtb",
-        "ft back_mtb disk",
-        "G4Tubs",
-        tube(B_MTB_IR, B_MTB_OR, B_MTB_TN),
-        mother="ft_cal",
-        position=(0, 0, B_MTB_Z),
-        color="0B3B0B",
-        material="pcboard",
-    )
+    volume = GVolume("ft_cal_back_mtb", value_formatter=fstr)
+    volume.description = "ft back_mtb disk"
+    volume.mother = "ft_cal"
+    volume.set_position(0, 0, B_MTB_Z)
+    volume.color = "0B3B0B"
+    volume.make_tube(B_MTB_IR, B_MTB_OR, B_MTB_TN)
+    volume.material = "pcboard"
+    volume.publish_passive(configuration)
     for index, angle in enumerate(B_MTB_ANGLES):
         radians = angle / 57.27
         distance = B_MTB_OR + B_MTB_HEAR_LN
-        publish_volume(
-            configuration,
-            f"ft_cal_back_mtb_h{index}",
-            f"ft back_mtb hear{index}",
-            "G4Box",
-            box(B_MTB_HEAR_LN, B_MTB_HEAR_WD, B_MTB_TN),
-            mother="ft_cal",
-            position=(distance * math.cos(radians), -distance * math.sin(radians), B_MTB_Z),
-            rotation=f"0*deg, 0*deg, {fstr(angle)}*deg",
-            color="0B3B0B",
-            material="pcboard",
-        )
-    publish_volume(
-        configuration,
-        "ft_cal_led",
-        "ft led",
-        "G4Tubs",
-        tube(B_DISK_IR, B_DISK_OR, LED_TN),
-        mother="ft_cal",
-        position=(0, 0, LED_Z),
-        color="333333",
-        material="ft_peek",
-    )
+        volume = GVolume(f"ft_cal_back_mtb_h{index}", value_formatter=fstr)
+        volume.description = f"ft back_mtb hear{index}"
+        volume.mother = "ft_cal"
+        volume.set_position(distance * math.cos(radians), -distance * math.sin(radians), B_MTB_Z)
+        volume.rotations = [f'0*deg, 0*deg, {fstr(angle)}*deg']
+        volume.color = "0B3B0B"
+        volume.make_box(B_MTB_HEAR_LN, B_MTB_HEAR_WD, B_MTB_TN)
+        volume.material = "pcboard"
+        volume.publish_passive(configuration)
+    volume = GVolume("ft_cal_led", value_formatter=fstr)
+    volume.description = "ft led"
+    volume.mother = "ft_cal"
+    volume.set_position(0, 0, LED_Z)
+    volume.color = "333333"
+    volume.make_tube(B_DISK_IR, B_DISK_OR, LED_TN)
+    volume.material = "ft_peek"
+    volume.publish_passive(configuration)
 
 
 def build_calorimeter_shielding(configuration):
@@ -438,39 +335,36 @@ def build_calorimeter_shielding(configuration):
          (B_CUP_IRM,) * 2, (B_CUP_ORB, B_CUP_OR2), (B_CUP_ZB, B_CUP_Z2), "ft_W", "ff0000"),
     )
     for name, description, inner, outer, z, material, color in cup_parts:
-        publish_volume(
-            configuration,
-            name,
-            description,
-            "G4Polycone",
-            polycone(inner, outer, z),
-            mother="ft_cal",
-            color=color,
-            material=material,
-        )
+        volume = GVolume(name, value_formatter=fstr)
+        volume.description = description
+        volume.mother = "ft_cal"
+        volume.color = color
+        volume.make_polycone(zplane=z, iradius=inner, oradius=outer)
+        volume.material = material
+        volume.publish_passive(configuration)
     for index, (start, delta) in enumerate(zip(B_CUP_IANGLES, B_CUP_DANGLES), start=1):
-        publish_volume(
-            configuration,
-            f"ft_cal_tcup_m{index}",
-            f"tungsten cup and cone at the back of the ft, medium part {index}",
-            "G4Polycone",
-            polycone((B_CUP_IRM,) * 2, (B_CUP_OR1, B_CUP_OR2), (B_CUP_Z1, B_CUP_Z2), start, delta),
-            mother="ft_cal",
-            color="ff0000",
-            material="ft_W",
+        volume = GVolume(f"ft_cal_tcup_m{index}", value_formatter=fstr)
+        volume.description = f"tungsten cup and cone at the back of the ft, medium part {index}"
+        volume.mother = "ft_cal"
+        volume.color = "ff0000"
+        volume.make_polycone(
+            start,
+            delta,
+            (B_CUP_Z1, B_CUP_Z2),
+            (B_CUP_IRM,) * 2,
+            (B_CUP_OR1, B_CUP_OR2),
         )
+        volume.material = "ft_W"
+        volume.publish_passive(configuration)
 
-    publish_volume(
-        configuration,
-        "ft_cal_inner_ins",
-        "ft inner_ins",
-        "G4Tubs",
-        tube(I_INS_IR, I_INS_OR, I_INS_LT),
-        mother="ft_cal",
-        position=(0, 0, I_INS_Z),
-        color="F5F6CE",
-        material="insfoam",
-    )
+    volume = GVolume("ft_cal_inner_ins", value_formatter=fstr)
+    volume.description = "ft inner_ins"
+    volume.mother = "ft_cal"
+    volume.set_position(0, 0, I_INS_Z)
+    volume.color = "F5F6CE"
+    volume.make_tube(I_INS_IR, I_INS_OR, I_INS_LT)
+    volume.material = "insfoam"
+    volume.publish_passive(configuration)
     build_segmented_polycones(configuration, "ins", "F5F6CE", "insfoam", O_INS_Z, O_INS_I, O_INS_O)
     build_segmented_polycones(
         configuration,
@@ -484,16 +378,17 @@ def build_calorimeter_shielding(configuration):
 
     tplate_inner = (B_LINE_MR, B_LINE_MR, T_PLATE_MR)
     tplate_outer = (T_PLATE_Z1 * B_CUP_TANG,) * 3
-    publish_volume(
-        configuration,
-        "ft_cal_tplate",
-        "ft tungsten plate",
-        "G4Polycone",
-        polycone(tplate_inner, tplate_outer, (T_PLATE_Z1, T_PLATE_ZM, T_PLATE_Z2)),
-        mother="ft_cal",
-        color="ff0000",
-        material="ft_W",
+    volume = GVolume("ft_cal_tplate", value_formatter=fstr)
+    volume.description = "ft tungsten plate"
+    volume.mother = "ft_cal"
+    volume.color = "ff0000"
+    volume.make_polycone(
+        zplane=(T_PLATE_Z1, T_PLATE_ZM, T_PLATE_Z2),
+        iradius=tplate_inner,
+        oradius=tplate_outer,
     )
+    volume.material = "ft_W"
+    volume.publish_passive(configuration)
 
 
 def build_segmented_polycones(configuration, kind, color, material, z, inner, outer):
@@ -511,46 +406,43 @@ def build_segmented_polycones(configuration, kind, color, material, z, inner, ou
         back_outer_indices = back_inner_indices
         back_z_indices = back_inner_indices
 
-    publish_volume(
-        configuration,
-        f"{prefix}_f",
-        f"{description}_f",
-        "G4Polycone",
-        polycone(
-            tuple(inner[index] for index in (0, 0, 1, 2, 3)),
-            tuple(outer[index] for index in (0, 1, 1, 2, 3)),
-            tuple(z[index] for index in (0, 1, 1, 2, 3)),
-        ),
-        mother="ft_cal",
-        color=color,
-        material=material,
+    volume = GVolume(f"{prefix}_f", value_formatter=fstr)
+    volume.description = f"{description}_f"
+    volume.mother = "ft_cal"
+    volume.color = color
+    volume.make_polycone(
+        zplane=tuple(z[index] for index in (0, 1, 1, 2, 3)),
+        iradius=tuple(inner[index] for index in (0, 0, 1, 2, 3)),
+        oradius=tuple(outer[index] for index in (0, 1, 1, 2, 3)),
     )
-    publish_volume(
-        configuration,
-        f"{prefix}_b",
-        f"{description}_b",
-        "G4Polycone",
-        polycone(
-            tuple(inner[index] for index in back_inner_indices),
-            tuple(outer[index] for index in back_outer_indices),
-            tuple(z[index] for index in back_z_indices),
-        ),
-        mother="ft_cal",
-        color=color,
-        material=material,
+    volume.material = material
+    volume.publish_passive(configuration)
+    volume = GVolume(f"{prefix}_b", value_formatter=fstr)
+    volume.description = f"{description}_b"
+    volume.mother = "ft_cal"
+    volume.color = color
+    volume.make_polycone(
+        zplane=tuple(z[index] for index in back_z_indices),
+        iradius=tuple(inner[index] for index in back_inner_indices),
+        oradius=tuple(outer[index] for index in back_outer_indices),
     )
+    volume.material = material
+    volume.publish_passive(configuration)
     for index, (start, delta) in enumerate(zip(B_CUP_IANGLES, B_CUP_DANGLES), start=1):
         middle_description = f"{description}_m{index}" if kind == "ins" else f"{description} {index}"
-        publish_volume(
-            configuration,
-            f"{prefix}_m{index}",
-            middle_description,
-            "G4Polycone",
-            polycone((inner[4], inner[3]), (outer[4], outer[3]), (z[4], z[3]), start, delta),
-            mother="ft_cal",
-            color=color,
-            material=material,
+        volume = GVolume(f"{prefix}_m{index}", value_formatter=fstr)
+        volume.description = middle_description
+        volume.mother = "ft_cal"
+        volume.color = color
+        volume.make_polycone(
+            start,
+            delta,
+            (z[4], z[3]),
+            (inner[4], inner[3]),
+            (outer[4], outer[3]),
         )
+        volume.material = material
+        volume.publish_passive(configuration)
 
 
 # ---------------------------------------------------------------------------
@@ -577,57 +469,47 @@ S2_W = (2.0,) * 12 + (1.0,) * 8
 
 def build_hodoscope(configuration):
     """Build the two scintillator layers and their carbon-fibre support."""
-    publish_volume(
-        configuration,
-        "ft_hodo",
-        "ft scintillation hodoscope",
-        "G4Polycone",
-        polycone(
-            (VETO_RING_OR, VETO_RING_OR, VETO_IR, VETO_IR),
-            (VETO_OR,) * 4,
-            (VETO_Z - VETO_TN, 1810.6, 1810.6, VETO_Z + VETO_TN),
-        ),
-        color="3399FF",
-        visible=0,
+    volume = GVolume("ft_hodo", value_formatter=fstr)
+    volume.description = "ft scintillation hodoscope"
+    volume.color = "3399FF"
+    volume.make_polycone(
+        zplane=(VETO_Z - VETO_TN, 1810.6, 1810.6, VETO_Z + VETO_TN),
+        iradius=(VETO_RING_OR, VETO_RING_OR, VETO_IR, VETO_IR),
+        oradius=(VETO_OR,) * 4,
     )
-    publish_volume(
-        configuration,
-        "ft_hodo_innervol",
-        "ft scintillation hodoscope inner volume",
-        "G4Tubs",
-        tube(VETO_RING_OR, VETO_OR, VETO_TN),
-        mother="ft_hodo",
-        position=(0, 0, VETO_Z),
-        color="3399FF",
-        visible=0,
-    )
-    publish_volume(
-        configuration,
-        "ft_hodo_ring",
-        "ft hodoscope support ring",
-        "G4Tubs",
-        tube(VETO_IR, VETO_RING_OR, VETO_RING_TN),
-        mother="ft_hodo",
-        position=(0, 0, VETO_RING_Z),
-        color="cccccc",
-        material="ft_peek",
-    )
+    volume.material = "G4_AIR"
+    volume.visible = 0
+    volume.publish_passive(configuration)
+    volume = GVolume("ft_hodo_innervol", value_formatter=fstr)
+    volume.description = "ft scintillation hodoscope inner volume"
+    volume.mother = "ft_hodo"
+    volume.set_position(0, 0, VETO_Z)
+    volume.color = "3399FF"
+    volume.make_tube(VETO_RING_OR, VETO_OR, VETO_TN)
+    volume.material = "G4_AIR"
+    volume.visible = 0
+    volume.publish_passive(configuration)
+    volume = GVolume("ft_hodo_ring", value_formatter=fstr)
+    volume.description = "ft hodoscope support ring"
+    volume.mother = "ft_hodo"
+    volume.set_position(0, 0, VETO_RING_Z)
+    volume.color = "cccccc"
+    volume.make_tube(VETO_IR, VETO_RING_OR, VETO_RING_TN)
+    volume.material = "ft_peek"
+    volume.publish_passive(configuration)
 
     layer_z = -VETO_TN
     for layer, thickness in enumerate((7.0, 15.0), start=1):
         skin_half = 0.25
         layer_z += skin_half
-        publish_volume(
-            configuration,
-            f"ft_hodo_L{layer}",
-            f"ft_hodo layer {layer} support",
-            "G4Tubs",
-            tube(VETO_RING_OR, VETO_OR, skin_half),
-            mother="ft_hodo_innervol",
-            position=(0, 0, layer_z),
-            color="EFEFFB",
-            material="carbonFiber",
-        )
+        volume = GVolume(f"ft_hodo_L{layer}", value_formatter=fstr)
+        volume.description = f"ft_hodo layer {layer} support"
+        volume.mother = "ft_hodo_innervol"
+        volume.set_position(0, 0, layer_z)
+        volume.color = "EFEFFB"
+        volume.make_tube(VETO_RING_OR, VETO_OR, skin_half)
+        volume.material = "carbonFiber"
+        volume.publish_passive(configuration)
         layer_z += skin_half
         painted_half = thickness / 2 + PAINT_TN
         layer_z += painted_half
@@ -690,30 +572,27 @@ def build_hodoscope_sector(
         tile_prefix = "ft_hodo_p15_tile_" if short else "ft_hodo_p30_tile_"
         color = "3399FF" if short else "0431B4"
         suffix = f"{sector}{layer}{component}"
-        publish_volume(
-            configuration,
-            f"{prefix}{suffix}",
-            f"{prefix} {sector} {layer} {component}",
-            "G4Box",
-            box(width * (TILE_WIDTH + 2 * PAINT_TN) / 2, width * (TILE_WIDTH + 2 * PAINT_TN) / 2,
-                painted_half),
-            mother="ft_hodo_innervol",
-            position=(x, y, z),
-            color=color,
-            material="G4_MYLAR",
+        volume = GVolume(f"{prefix}{suffix}", value_formatter=fstr)
+        volume.description = f"{prefix} {sector} {layer} {component}"
+        volume.mother = "ft_hodo_innervol"
+        volume.set_position(x, y, z)
+        volume.color = color
+        volume.make_box(
+            width * (TILE_WIDTH + 2 * PAINT_TN) / 2,
+            width * (TILE_WIDTH + 2 * PAINT_TN) / 2,
+            painted_half,
         )
-        publish_volume(
-            configuration,
-            f"{tile_prefix}{suffix}",
-            f"{tile_prefix} {sector} {layer} {component}",
-            "G4Box",
-            box(width * TILE_WIDTH / 2, width * TILE_WIDTH / 2, tile_half),
-            mother=f"{prefix}{suffix}",
-            color="BCA9F5",
-            material="scintillator",
-            digitization="ft_hodo",
-            identifiers=("sector", sector, "layer", layer, "component", component),
-        )
+        volume.material = "G4_MYLAR"
+        volume.publish_passive(configuration)
+        volume = GVolume(f"{tile_prefix}{suffix}", value_formatter=fstr)
+        volume.description = f"{tile_prefix} {sector} {layer} {component}"
+        volume.mother = f"{prefix}{suffix}"
+        volume.color = "BCA9F5"
+        volume.make_box(width * TILE_WIDTH / 2, width * TILE_WIDTH / 2, tile_half)
+        volume.material = "scintillator"
+        volume.digitization = "ft_hodo"
+        volume.set_identifier(*("sector", sector, "layer", layer, "component", component))
+        volume.publish_passive(configuration)
 
 
 # ---------------------------------------------------------------------------
@@ -798,35 +677,37 @@ def build_tracker(configuration):
 
 def build_tracker_mother(configuration):
     """Build the FTTRK mother polycone and four centring supports."""
-    publish_volume(
-        configuration,
-        "ft_trk",
-        "ft tracker micromegas",
-        "G4Polycone",
-        polycone(
-            (40.0,) * 6,
-            (59.75, 59.75, TRACKER_OUTER, TRACKER_OUTER, 50.0, 50.0),
-            (TRACKER_Z0, TRACKER_ZMIN, TRACKER_ZMIN, TRACKER_ZMAX, TRACKER_ZMAX, TRACKER_Z4),
+    volume = GVolume("ft_trk", value_formatter=fstr)
+    volume.description = "ft tracker micromegas"
+    volume.color = "aaaaff"
+    volume.make_polycone(
+        zplane=(
+            TRACKER_Z0,
+            TRACKER_ZMIN,
+            TRACKER_ZMIN,
+            TRACKER_ZMAX,
+            TRACKER_ZMAX,
+            TRACKER_Z4,
         ),
-        color="aaaaff",
-        visible=0,
+        iradius=(40.0,) * 6,
+        oradius=(59.75, 59.75, TRACKER_OUTER, TRACKER_OUTER, 50.0, 50.0),
     )
+    volume.material = "G4_AIR"
+    volume.visible = 0
+    volume.publish_passive(configuration)
     zmin = (TRACKER_Z0, 1774.0, 1805.2, TRACKER_ZMIN)
     zmax = (1774.0, 1805.2, TRACKER_Z4, 1774.0)
     inner = (40.0, 40.0, 40.0, 59.75)
     outer = (59.75, 50.0, 50.0, 67.0)
     for ring in range(4):
-        publish_volume(
-            configuration,
-            f"ft_trk_support_R{ring + 1}",
-            f"ft tracker centering support, ring {ring + 1}",
-            "G4Tubs",
-            tube(inner[ring], outer[ring], 0.5 * (zmax[ring] - zmin[ring])),
-            mother="ft_trk",
-            position=(0, 0, 0.5 * (zmax[ring] + zmin[ring])),
-            color=TRACKER_COLORS["aluminum"],
-            material="G4_Al",
-        )
+        volume = GVolume(f"ft_trk_support_R{ring + 1}", value_formatter=fstr)
+        volume.description = f"ft tracker centering support, ring {ring + 1}"
+        volume.mother = "ft_trk"
+        volume.set_position(0, 0, 0.5 * (zmax[ring] + zmin[ring]))
+        volume.color = TRACKER_COLORS["aluminum"]
+        volume.make_tube(inner[ring], outer[ring], 0.5 * (zmax[ring] - zmin[ring]))
+        volume.material = "G4_Al"
+        volume.publish_passive(configuration)
 
 
 def build_tracker_disk_side(configuration, layer, side):
@@ -846,43 +727,37 @@ def build_tracker_disk_side(configuration, layer, side):
         ("drift", "drift", 9, 10, DRIFT_PCB_DZ, TRACKER_INNER, 158.5, "myFR4", "pcboard"),
     )
     for stem, description, lower, upper, half_length, inner, outer, material, color in simple_layers:
-        publish_volume(
-            configuration,
-            f"ft_trk_{stem}_{axis}_L{layer_number}",
-            f"{description} {axis}, layer {layer_number}",
-            "G4Tubs",
-            tube(inner, outer, half_length),
-            mother="ft_trk",
-            position=(0, 0, tracker_z(layer, side, ZREL[lower], ZREL[upper])),
-            color=TRACKER_COLORS[color],
-            material=material,
-        )
+        volume = GVolume(f"ft_trk_{stem}_{axis}_L{layer_number}", value_formatter=fstr)
+        volume.description = f"{description} {axis}, layer {layer_number}"
+        volume.mother = "ft_trk"
+        volume.set_position(0, 0, tracker_z(layer, side, ZREL[lower], ZREL[upper]))
+        volume.color = TRACKER_COLORS[color]
+        volume.make_tube(inner, outer, half_length)
+        volume.material = material
+        volume.publish_passive(configuration)
 
     build_tracker_kapton(configuration, layer, side)
     build_tracker_photoresist(configuration, layer, side)
     gas2_z = tracker_z(layer, side, ZREL[7] + 2 * PHOTORESIST_DZ, ZREL[8])
-    publish_volume(
-        configuration,
-        f"ft_trk_gas2_{axis}_L{layer_number}",
-        f"gas2 {axis}, layer {layer_number}",
-        "G4Tubs",
-        tube(67.0, 151.5, GAS2_DZ),
-        mother="ft_trk",
-        position=(0, 0, gas2_z),
-        color=TRACKER_COLORS["gas"],
-        material="mmgas",
-        digitization="ft_trk",
-        identifiers=(
-            "superlayer",
-            layer_number,
-            "type",
-            side,
-            "segment",
-            1,
-            "strip",
-            1,
-        ),
-    )
+    volume = GVolume(f"ft_trk_gas2_{axis}_L{layer_number}", value_formatter=fstr)
+    volume.description = f"gas2 {axis}, layer {layer_number}"
+    volume.mother = "ft_trk"
+    volume.set_position(0, 0, gas2_z)
+    volume.color = TRACKER_COLORS["gas"]
+    volume.make_tube(67.0, 151.5, GAS2_DZ)
+    volume.material = "mmgas"
+    volume.digitization = "ft_trk"
+    volume.set_identifier(*(
+    "superlayer",
+    layer_number,
+    "type",
+    side,
+    "segment",
+    1,
+    "strip",
+    1,
+))
+    volume.publish_passive(configuration)
     build_tracker_rings(configuration, layer, side)
 
 
@@ -894,17 +769,14 @@ def build_tracker_kapton(configuration, layer, side):
     zmax = (ZREL[4], ZREL[12])
     outer = (TRACKER_OUTER, 158.5)
     for ring in range(2):
-        publish_volume(
-            configuration,
-            f"ft_trk_kapton_{axis}_L{layer_number}_R{ring + 1}",
-            f"kapton {axis}, layer {layer_number}, ring {ring + 1}",
-            "G4Tubs",
-            tube(TRACKER_INNER, outer[ring], 0.5 * (zmax[ring] - zmin[ring])),
-            mother="ft_trk",
-            position=(0, 0, tracker_z(layer, side, zmin[ring], zmax[ring])),
-            color=TRACKER_COLORS["pcboard"],
-            material="G4_KAPTON",
-        )
+        volume = GVolume(f"ft_trk_kapton_{axis}_L{layer_number}_R{ring + 1}", value_formatter=fstr)
+        volume.description = f"kapton {axis}, layer {layer_number}, ring {ring + 1}"
+        volume.mother = "ft_trk"
+        volume.set_position(0, 0, tracker_z(layer, side, zmin[ring], zmax[ring]))
+        volume.color = TRACKER_COLORS["pcboard"]
+        volume.make_tube(TRACKER_INNER, outer[ring], 0.5 * (zmax[ring] - zmin[ring]))
+        volume.material = "G4_KAPTON"
+        volume.publish_passive(configuration)
 
 
 def build_tracker_photoresist(configuration, layer, side):
@@ -921,17 +793,14 @@ def build_tracker_photoresist(configuration, layer, side):
     inner = (TRACKER_INNER, 143.16, TRACKER_INNER, 143.16)
     outer = (71.43, TRACKER_OUTER, 71.43, TRACKER_OUTER)
     for ring in range(4):
-        publish_volume(
-            configuration,
-            f"ft_trk_phrst_{axis}_L{layer_number}_R{ring + 1}",
-            f"photoresist {axis}, layer {layer_number}, ring {ring + 1}",
-            "G4Tubs",
-            tube(inner[ring], outer[ring], 0.5 * (zmax[ring] - zmin[ring])),
-            mother="ft_trk",
-            position=(0, 0, tracker_z(layer, side, zmin[ring], zmax[ring])),
-            color=TRACKER_COLORS["photoresist"],
-            material="myPhRes",
-        )
+        volume = GVolume(f"ft_trk_phrst_{axis}_L{layer_number}_R{ring + 1}", value_formatter=fstr)
+        volume.description = f"photoresist {axis}, layer {layer_number}, ring {ring + 1}"
+        volume.mother = "ft_trk"
+        volume.set_position(0, 0, tracker_z(layer, side, zmin[ring], zmax[ring]))
+        volume.color = TRACKER_COLORS["photoresist"]
+        volume.make_tube(inner[ring], outer[ring], 0.5 * (zmax[ring] - zmin[ring]))
+        volume.material = "myPhRes"
+        volume.publish_passive(configuration)
 
 
 def build_tracker_rings(configuration, layer, side):
@@ -943,17 +812,14 @@ def build_tracker_rings(configuration, layer, side):
     zmax = ZREL[9]
     z = tracker_z(layer, side, zmin, zmax)
     for ring, (inner, outer) in enumerate(((60.0, 67.0), (151.5, 158.5)), start=1):
-        publish_volume(
-            configuration,
-            f"{name}_R{ring}",
-            f"ring {axis}, layer {layer_number}, ring {ring}",
-            "G4Tubs",
-            tube(inner, outer, ALUMINUM_RINGS_DZ),
-            mother="ft_trk",
-            position=(0, 0, z),
-            color=TRACKER_COLORS["aluminum"],
-            material="G4_Al",
-        )
+        volume = GVolume(f"{name}_R{ring}", value_formatter=fstr)
+        volume.description = f"ring {axis}, layer {layer_number}, ring {ring}"
+        volume.mother = "ft_trk"
+        volume.set_position(0, 0, z)
+        volume.color = TRACKER_COLORS["aluminum"]
+        volume.make_tube(inner, outer, ALUMINUM_RINGS_DZ)
+        volume.material = "G4_Al"
+        volume.publish_passive(configuration)
     for extension in range(25):
         number = extension + 1
         start = -0.5 * 4.9 + extension * 15.0
@@ -961,17 +827,14 @@ def build_tracker_rings(configuration, layer, side):
             start -= 5.0
         if number == 25:
             start = start - 15.0 + 5.0
-        publish_volume(
-            configuration,
-            f"{name}_E{number}",
-            f"ring {axis}, layer {layer_number}, ext {number}",
-            "G4Tubs",
-            tube(158.5, TRACKER_OUTER, ALUMINUM_RINGS_DZ, start, 4.9),
-            mother="ft_trk",
-            position=(0, 0, z),
-            color=TRACKER_COLORS["aluminum"],
-            material="G4_Al",
-        )
+        volume = GVolume(f"{name}_E{number}", value_formatter=fstr)
+        volume.description = f"ring {axis}, layer {layer_number}, ext {number}"
+        volume.mother = "ft_trk"
+        volume.set_position(0, 0, z)
+        volume.color = TRACKER_COLORS["aluminum"]
+        volume.make_tube(158.5, TRACKER_OUTER, ALUMINUM_RINGS_DZ, start, 4.9)
+        volume.material = "G4_Al"
+        volume.publish_passive(configuration)
 
 
 def build_tracker_assembly(configuration):
@@ -982,35 +845,29 @@ def build_tracker_assembly(configuration):
     zmax = zmin + 2 * ASSEMBLY_DZ[2]
     z = TRACKER_LAYER_Z[0] + 0.5 * (zmin + zmax)
     for ring in range(3):
-        publish_volume(
-            configuration,
-            f"ft_trk_assembly_R{ring + 1}",
-            f"assembly, ring {ring + 1}",
-            "G4Tubs",
-            tube(inner[ring], outer[ring], ASSEMBLY_DZ[ring]),
-            mother="ft_trk",
-            position=(0, 0, z),
-            color=TRACKER_COLORS["aluminum"],
-            material="G4_Al",
-        )
+        volume = GVolume(f"ft_trk_assembly_R{ring + 1}", value_formatter=fstr)
+        volume.description = f"assembly, ring {ring + 1}"
+        volume.mother = "ft_trk"
+        volume.set_position(0, 0, z)
+        volume.color = TRACKER_COLORS["aluminum"]
+        volume.make_tube(inner[ring], outer[ring], ASSEMBLY_DZ[ring])
+        volume.material = "G4_Al"
+        volume.publish_passive(configuration)
 
     dx = 0.5 * (158.69 - 67.0)
     dy = 1.5
     for branch in range(3):
         rotation = branch * 120.0
         radians = math.radians(rotation)
-        publish_volume(
-            configuration,
-            f"ft_trk_assembly_B{branch + 1}",
-            f"assembly, branch {branch + 1}",
-            "G4Box",
-            box(dx, dy, ASSEMBLY_DZ[0]),
-            mother="ft_trk",
-            position=((67.0 + dx) * math.cos(radians), (67.0 + dx) * math.sin(radians), z),
-            rotation=f"0*deg, 0*deg, {fstr(-rotation)}*deg",
-            color=TRACKER_COLORS["aluminum"],
-            material="G4_Al",
-        )
+        volume = GVolume(f"ft_trk_assembly_B{branch + 1}", value_formatter=fstr)
+        volume.description = f"assembly, branch {branch + 1}"
+        volume.mother = "ft_trk"
+        volume.set_position((67.0 + dx) * math.cos(radians), (67.0 + dx) * math.sin(radians), z)
+        volume.rotations = [f'0*deg, 0*deg, {fstr(-rotation)}*deg']
+        volume.color = TRACKER_COLORS["aluminum"]
+        volume.make_box(dx, dy, ASSEMBLY_DZ[0])
+        volume.material = "G4_Al"
+        volume.publish_passive(configuration)
 
 
 def build_tracker_fee_boxes(configuration):
@@ -1036,60 +893,46 @@ def build_tracker_fee_boxes(configuration):
         rotation = f"ordered: zyx, {fstr(azimuth)}*deg, 0*deg, 0*deg"
         box_name = f"ft_trk_fee_box_{index}"
         air_name = f"ft_trk_fee_air_{index}"
-        publish_volume(
-            configuration,
-            box_name,
-            f"ft-trk fee box {index}",
-            "G4Box",
-            box(fee_height, fee_width, fee_length),
-            mother="ft_cal",
-            position=(x, y, z),
-            rotation=rotation,
-            color="999999",
-            material="G4_Al",
-        )
-        publish_volume(
-            configuration,
-            air_name,
-            f"ft-trk fee air {index}",
-            "G4Box",
-            box(*fee_air),
-            mother=box_name,
-            color="CCFFFF",
-        )
-        publish_volume(
-            configuration,
-            f"ft_trk_fee_flux_1_{index}",
-            "ft-trk fee flux 1",
-            "G4Box",
-            box(fee_air[0] - 1.0, fee_air[1] - 1.0, 0.5),
-            mother=air_name,
-            position=(0, 0, -fee_air[2] + 0.5),
-            color="aa0088",
-            material="G4_Galactic",
-            digitization="flux",
-            identifiers=("id", 4),
-        )
-        publish_volume(
-            configuration,
-            f"ft_trk_fee_flux_2_{index}",
-            "ft-trk fee flux 2",
-            "G4Box",
-            box(fee_air[0] - 1.0, 0.5, fee_air[2] - 1.0),
-            mother=air_name,
-            position=(0, -fee_width * 0.6, 0),
-            color="aa0088",
-            material="G4_Galactic",
-            digitization="flux",
-            identifiers=("id", 5),
-        )
-        publish_volume(
-            configuration,
-            f"ft_trk_fee_dose_{index}",
-            "ft-trk fee dose",
-            "G4Box",
-            box(fee_air[0] - 5.0, 5.0, fee_air[2] - 5.0),
-            mother=air_name,
-            color="003300",
-            material="scintillator",
-        )
+        volume = GVolume(box_name, value_formatter=fstr)
+        volume.description = f"ft-trk fee box {index}"
+        volume.mother = "ft_cal"
+        volume.set_position(x, y, z)
+        volume.rotations = [rotation]
+        volume.color = "999999"
+        volume.make_box(fee_height, fee_width, fee_length)
+        volume.material = "G4_Al"
+        volume.publish_passive(configuration)
+        volume = GVolume(air_name, value_formatter=fstr)
+        volume.description = f"ft-trk fee air {index}"
+        volume.mother = box_name
+        volume.color = "CCFFFF"
+        volume.make_box(*fee_air)
+        volume.material = "G4_AIR"
+        volume.publish_passive(configuration)
+        volume = GVolume(f"ft_trk_fee_flux_1_{index}", value_formatter=fstr)
+        volume.description = "ft-trk fee flux 1"
+        volume.mother = air_name
+        volume.set_position(0, 0, -fee_air[2] + 0.5)
+        volume.color = "aa0088"
+        volume.make_box(fee_air[0] - 1.0, fee_air[1] - 1.0, 0.5)
+        volume.material = "G4_Galactic"
+        volume.digitization = "flux"
+        volume.set_identifier(*("id", 4))
+        volume.publish_passive(configuration)
+        volume = GVolume(f"ft_trk_fee_flux_2_{index}", value_formatter=fstr)
+        volume.description = "ft-trk fee flux 2"
+        volume.mother = air_name
+        volume.set_position(0, -fee_width * 0.6, 0)
+        volume.color = "aa0088"
+        volume.make_box(fee_air[0] - 1.0, 0.5, fee_air[2] - 1.0)
+        volume.material = "G4_Galactic"
+        volume.digitization = "flux"
+        volume.set_identifier(*("id", 5))
+        volume.publish_passive(configuration)
+        volume = GVolume(f"ft_trk_fee_dose_{index}", value_formatter=fstr)
+        volume.description = "ft-trk fee dose"
+        volume.mother = air_name
+        volume.color = "003300"
+        volume.make_box(fee_air[0] - 5.0, 5.0, fee_air[2] - 5.0)
+        volume.material = "scintillator"
+        volume.publish_passive(configuration)

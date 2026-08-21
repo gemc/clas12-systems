@@ -48,12 +48,17 @@ API:
 
 ## Current Scope
 
-This repository is under active migration from [`gemc/clas12Tags`](https://github.com/gemc/clas12Tags). The first GEMC3 system in the registry is:
+This repository is under active migration from [`gemc/clas12Tags`](https://github.com/gemc/clas12Tags).
 
-| System  | Status              | Notes                                             |
-|---------|---------------------|---------------------------------------------------|
-| `dc`    | geometry and plugin | Uses coatjava as geometry source                  |
-| `field` | plugin              | CLAS12 mapped magnetic field via the cMag library |
+| System  | Status                    | Notes                                               |
+|---------|---------------------------|-----------------------------------------------------|
+| `dc`    | geometry and plugin       | Uses coatjava as geometry source                    |
+| `ec`    | geometry and plugin       | Uses coatjava and the shared `ecal` plugin          |
+| `field` | plugin                    | CLAS12 mapped magnetic field via the cMag library   |
+| `ft`    | geometry and plugins      | Upcoming next release: FTCAL, FTHODO, and FTTRK     |
+| `ftof`  | geometry and plugin       | Uses coatjava as geometry source                    |
+| `ltcc`  | geometry and plugin       | Native and CAD geometry with optical surfaces       |
+| `pcal`  | geometry and shared plugin | Uses coatjava and the shared `ecal` plugin         |
 
 
 <br/>
@@ -112,6 +117,13 @@ gemc dc.yaml
 gemc dc.yaml -gui
 ```
 
+Sensitive geometry rows select their runtime plugin through the volume's `digitization` field. The optional
+`digitization` key on a YAML `gsystem` entry has a narrower purpose: it tells GEMC which differently named plugin
+to probe before parsing options, as when the `ec` and `pcal` systems share `ecal.gplugin`. FT has three sensitive
+names (`ft_cal`, `ft_hodo`, and `ft_trk`), so its YAML keeps a plain `name: ft` entry. The options-only
+`ft.gplugin` registers all three domains during the bootstrap probe; geometry loading then discovers and loads
+the three digitizers from the sensitive rows.
+
 <br/>
 
 ## Reference Checks
@@ -129,6 +141,7 @@ dimensions, material, digitization (GEMC2 `sensitivity`), and identifier (GEMC2 
 canonical `name=value` form) — and compares only those field values by volume name, so formatting and
 column-order differences do not hide real geometry matches. Materials are compared the same way by material
 name (density, components, optical and scintillation properties), for systems that define custom materials.
+Numeric spellings and the GEMC2/GEMC3 polycone array orders are normalized before comparison.
 
 When any field differs the script prints the field-level mismatches and exits with status `1`; an all-match run
 exits with status `0`.
@@ -214,6 +227,11 @@ The CLAS12 system registry is currently in `meson.build`:
 ```meson
 clas12_systems = [
     'dc',
+    'ec',
+    'ft',
+    'ftof',
+    'ltcc',
+    'pcal',
 ]
 ```
 
@@ -224,8 +242,9 @@ geometry.
 
 ## CCDB Calibration Constants
 
-The detector digitization plugins (`dc`, `ecal`, `ftof`, `ltcc`) load their calibration constants from CCDB. By
-default they connect to the JLab database at `mysql://clas12reader@clasdb.jlab.org/clas12`; set the
+The detector digitization plugins (`dc`, `ecal`, `ft_cal`, `ft_hodo`, `ftof`, `ltcc`) load their calibration
+constants from CCDB. By default they connect to the JLab database at
+`mysql://clas12reader@clasdb.jlab.org/clas12`; set the
 `CCDB_CONNECTION` environment variable to point at a different server or a local SQLite snapshot
 (`sqlite:///path/to/ccdb.sqlite`). Note this is the CCDB database, not the GEMC2 `clas12.sqlite` detector
 database — pointing at the latter yields empty constants. On any CCDB failure (unreachable host, wrong database,

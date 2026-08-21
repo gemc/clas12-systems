@@ -76,6 +76,8 @@ jobs:
             n_events: 20000
           - system: ltcc
             n_events: 20000
+          - system: ft
+            n_events: 20000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -296,14 +298,16 @@ jobs:
           # The Run GEMC3 step moved the outputs to the workspace root as <system>_<variant>.hipo.
           cp "${{ matrix.system }}_field.hipo"   "${{ matrix.system }}_gemc3.hipo"
           cp "${{ matrix.system }}_nofield.hipo" "${{ matrix.system }}_gemc3_nofield.hipo"
+          field_reference="$(head -n1 "$RUNNER_TEMP/reference.txt" 2>/dev/null || echo unknown)"
+          nofield_reference="$(head -n1 "$RUNNER_TEMP/reference_nofield.txt" 2>/dev/null || echo unknown)"
           {
             echo "source: ${GITHUB_REPOSITORY}@${GITHUB_SHA} (${GITHUB_REF_NAME})"
             echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "system: ${{ matrix.system }}"
             echo "n_events: ${{ matrix.n_events }}"
             echo "image: ghcr.io/gemc/src:dev-ubuntu-24.04"
-            echo "reference (field): $(head -n1 "$RUNNER_TEMP/reference.txt" 2>/dev/null || echo unknown)"
-            echo "reference (nofield): $(head -n1 "$RUNNER_TEMP/reference_nofield.txt" 2>/dev/null || echo unknown)"
+            echo "reference (field): $field_reference"
+            echo "reference (nofield): $nofield_reference"
           } > "${{ matrix.system }}_gemc3.txt"
           cat "${{ matrix.system }}_gemc3.txt"
 

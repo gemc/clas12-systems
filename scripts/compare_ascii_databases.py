@@ -52,9 +52,13 @@ MATERIAL_FIELDS = (
     "mieratio",
 )
 SECTIONS = ("geometry", "materials")
-# Volumes that gemc3 intentionally does not generate. gemc3 stops optical photons at the
-# stepping-action level, so it drops GEMC2's per-PMT light-stopper volumes. Skip them on both
-# sides so the reference's stoppers are not reported as missing generated volumes.
+# Runtime-only companion systems are separate Geant4 factories, but together they represent one
+# clas12Tags detector in the semantic database comparison.
+COMPANION_SYSTEMS = {
+    "ltcc": ("ltcc_cad",),
+}
+# GEMC3 stops optical-photon tracks after the first PMT hit, so it does not need GEMC2's per-PMT
+# light-stopper daughters. Skip them on both sides of the semantic geometry comparison.
 SKIP_VOLUME_PREFIXES = {
     "ltcc": ("pmt_light_stopper_",),
 }
@@ -138,22 +142,25 @@ def discover_systems() -> list[str]:
 
 def normalize_field(value: str) -> str:
     tokens = value.replace(",", " ").split()
-    return " ".join(normalize_zero_token(token) for token in tokens)
+    return " ".join(normalize_number_token(token) for token in tokens)
 
 
-def normalize_zero_token(token: str) -> str:
-    """Map any zero-valued token to "0".
+def normalize_number_token(token: str) -> str:
+    """Canonicalize numeric tokens and map any zero-valued token to "0".
 
     GEMC2 prints unset positions/rotations without units ("0 0 0") while pygemc
-    always carries units ("0*mm, 0*mm, 0*mm"); both collapse to "0 0 0".
+    always carries units ("0*mm, 0*mm, 0*mm"); both collapse to "0 0 0". Other
+    numbers retain their unit but use Python's canonical float spelling, so equivalent
+    tokens such as ``67.0*mm``/``67*mm`` and ``360.*deg``/``360*deg`` compare equal.
     """
-    magnitude = token.split("*", 1)[0]
+    magnitude, separator, unit = token.partition("*")
     try:
-        if float(magnitude) == 0.0:
+        number = float(magnitude)
+        if number == 0.0:
             return "0"
     except ValueError:
-        pass
-    return token
+        return token
+    return repr(number) + separator + unit
 
 
 def normalize_solid(value: str) -> str:
@@ -165,6 +172,38 @@ def normalize_solid(value: str) -> str:
     """
     text = normalize_field(value)
     return SOLID_NAME_MAP.get(text, text)
+
+
+def normalize_dimensions(value: str, solid: str, schema: str) -> str:
+    """Canonicalize dimensions, including the GEMC2/GEMC3 polycone array order.
+
+    GEMC2 serializes a polycone as ``inner[], outer[], z[]``. GEMC3 follows the
+    Geant4 constructor and stores ``z[], inner[], outer[]``. Canonicalize both to
+    the GEMC2 order after normalizing their numeric tokens.
+    """
+    dimensions = normalize_field(value)
+    if solid != "G4Polycone":
+        return dimensions
+
+    tokens = dimensions.split()
+    if len(tokens) < 3:
+        return dimensions
+    try:
+        planes = int(float(tokens[2].partition("*")[0]))
+    except ValueError:
+        return dimensions
+    if len(tokens) != 3 + 3 * planes:
+        return dimensions
+
+    first, second, third = (
+        tokens[3 : 3 + planes],
+        tokens[3 + planes : 3 + 2 * planes],
+        tokens[3 + 2 * planes :],
+    )
+    if schema == "pygemc":
+        z_values, inner, outer = first, second, third
+        return " ".join(tokens[:3] + inner + outer + z_values)
+    return dimensions
 
 
 def normalize_material_name(value: str) -> str:
@@ -269,14 +308,15 @@ def required_row_size(row: list[str], size: int, path: Path) -> None:
 
 
 def old_geometry_record(row: list[str]) -> dict[str, str]:
+    solid = normalize_solid(row[6])
     return {
         "name": normalize_field(row[0]),
         "mother": normalize_field(row[1]),
         "description": normalize_field(row[2]),
         "position": normalize_field(row[3]),
         "rotation": normalize_field(row[4]),
-        "solid": normalize_solid(row[6]),
-        "dimensions": normalize_field(row[7]),
+        "solid": solid,
+        "dimensions": normalize_dimensions(row[7], solid, "clas12tags"),
         "material": normalize_material_name(row[8]),
         "digitization": normalize_digitization(row[15]),
         "identifier": normalize_identifier(row[17], "clas12tags"),
@@ -287,7 +327,7 @@ def new_geometry_record(row: list[str]) -> dict[str, str]:
     # A boolean solid lives in the solidsOpr column; clas12Tags encodes it in the
     # type column as "Operation: a - b".
     solid = normalize_solid(row[1])
-    dimensions = normalize_field(row[2])
+    dimensions = normalize_dimensions(row[2], solid, "pygemc")
     solids_opr = normalize_digitization(row[16])
     if solids_opr:
         solid = normalize_field(f"Operation: {solids_opr}")
@@ -352,7 +392,7 @@ def new_material_record(row: list[str]) -> dict[str, str]:
     # pygemc does not store ncomponents; the composition string alternates
     # component name and amount, so the pair count recovers it.
     components = normalize_material_field(row[2])
-    ncomponents = str(len(components.split()) // 2)
+    ncomponents = normalize_field(str(len(components.split()) // 2))
 
     # pygemc has no mie scattering fields; they compare as unset so any
     # reference material carrying non-default mie values is reported.
@@ -400,6 +440,15 @@ def semantic_records(path: Path, schema: str, section: str) -> dict[str, dict[st
             required_row_size(row, 20, path)
             record = new_geometry_record(row)
         records[record["name"]] = record
+    return records
+
+
+def combined_semantic_records(
+    paths: list[Path], schema: str, section: str
+) -> dict[str, dict[str, str]]:
+    records = {}
+    for path in paths:
+        records.update(semantic_records(path, schema, section))
     return records
 
 
@@ -478,11 +527,13 @@ def drop_skipped_volumes(
 def compare_variation(
     system: str,
     variation: str,
-    generated: Path,
+    generated: list[Path],
     reference: Path,
     section: str,
 ) -> tuple[bool, str]:
-    generated_records = drop_skipped_volumes(semantic_records(generated, "pygemc", section), system)
+    generated_records = drop_skipped_volumes(
+        combined_semantic_records(generated, "pygemc", section), system
+    )
     reference_records = drop_skipped_volumes(semantic_records(reference, "clas12tags", section), system)
     fields = GEOMETRY_FIELDS if section == "geometry" else MATERIAL_FIELDS
     kind = "volume" if section == "geometry" else "material"
@@ -506,7 +557,13 @@ def compare_section(
     generated_dir: Path,
     reference_dir: Path,
 ) -> tuple[bool, list[str]]:
-    generated_files = variation_files(generated_dir, system, section)
+    generated_files = {
+        variation: [path]
+        for variation, path in variation_files(generated_dir, system, section).items()
+    }
+    for companion in COMPANION_SYSTEMS.get(system, ()):
+        for variation, path in variation_files(generated_dir, companion, section).items():
+            generated_files.setdefault(variation, []).append(path)
     reference_files = variation_files(reference_dir, system, section)
 
     # Systems built entirely from standard Geant4 materials ship no materials files.

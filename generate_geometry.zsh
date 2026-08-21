@@ -28,7 +28,7 @@ EOF
 }
 
 factory=sqlite
-systems=(dc ftof ec pcal ltcc)
+systems=(dc ft ftof ec ltcc pcal)
 prefix=
 install_experiments=1
 

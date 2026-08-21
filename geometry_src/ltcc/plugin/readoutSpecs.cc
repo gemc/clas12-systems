@@ -5,7 +5,7 @@
 
 
 bool LTCC_digitization::defineReadoutSpecsImpl() {
-    double timeWindow = gopts->getScalarDouble("ltcc_timeWindow");
+    double timeWindow = gopts->getRequiredScalarDouble("ltcc_timeWindow");
     double gridStartTime = 0;
     double maxStep = 5.0 * CLHEP::mm;
 

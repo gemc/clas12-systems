@@ -29,6 +29,10 @@ Current subsystem support:
   62, 3 = 2 with 5). It writes ADC and TDC spectra per panel and for all panels combined, a paddle-vs-panel
   hit-count map per sector, and a global true-hit y-vs-x map (as in `ec`). In comparison mode the per-panel and
   combined ADC/TDC spectra are overlaid and the per-sector hit-count and y-vs-x maps are compared.
+- `ltcc`: reads `LTCC::adc`, `LTCC::tdc`, and `MC::True`. It compares the `ADC` HIPO column corresponding to
+  GEMC2's `ADC_ADC`, split by PMT side and combined, as well as TDC, occupancy, true-hit time, and global XY.
+- `ft`: reads `FTCAL::adc`, `FTHODO::adc`, and `FTTRK::adc`. It compares the `ADC` HIPO column corresponding to
+  GEMC2's `ADC_ADC` independently for all three Forward Tagger detectors.
 
 Example:
 
@@ -37,6 +41,8 @@ hipo-histos dc input.hipo --label input -o dc_histos.root --plot-dir dc_plots
 hipo-histos ec input.hipo --label input -o ec_histos.root --plot-dir ec_plots
 hipo-histos pcal input.hipo --label input -o pcal_histos.root --plot-dir pcal_plots
 hipo-histos ftof input.hipo --label input -o ftof_histos.root --plot-dir ftof_plots
+hipo-histos ltcc input.hipo --label input -o ltcc_histos.root --plot-dir ltcc_plots
+hipo-histos ft input.hipo --label input -o ft_histos.root --plot-dir ft_plots
 ```
 
 Comparison example:

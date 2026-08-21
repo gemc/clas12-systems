@@ -70,7 +70,7 @@ def build_mother(configuration, volume):
     gvolume.color = "ff1111"
     gvolume.material = "G4_AIR"
     gvolume.visible = 0
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -86,7 +86,7 @@ def build_lead_layer(configuration, volume):
     gvolume.color = "66ff33"
     gvolume.material = "G4_Pb"
     gvolume.style = 1
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -101,7 +101,7 @@ def build_scintillator_layer(configuration, volume):
     gvolume.description = "Preshower Calorimeter"
     gvolume.color = SCINTILLATOR_COLOR[uvw]
     gvolume.material = "G4_TITANIUM_DIOXIDE"
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -127,7 +127,7 @@ def build_strip(configuration, volume):
         gvolume.digitization = "ecal"
         gvolume.set_identifier("sector", sector, "layer", layer, "strip", pcal_strip_id(uvw, kind, strip))
 
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -143,7 +143,7 @@ def build_steel_window(configuration, volume):
     gvolume.color = "D4E3EE"
     gvolume.material = "G4_STAINLESS-STEEL"
     gvolume.style = 1
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -159,7 +159,7 @@ def build_foam_window(configuration, volume):
     gvolume.color = "EED18C"
     gvolume.material = "LastaFoam"
     gvolume.style = 1
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -189,7 +189,6 @@ def base_volume(volume):
     gvolume.mother = volume.mother
     gvolume.position = volume.position
     gvolume.rotations = [volume.rotation]
-    gvolume.g4placement_type = "passive"
     gvolume.solid = volume.solid
     gvolume.parameters = volume.dimensions
     return gvolume

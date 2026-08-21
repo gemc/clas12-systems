@@ -88,7 +88,7 @@ def build_mother(configuration, volume):
     gvolume.color = "ff1111"
     gvolume.material = "G4_AIR"
     gvolume.visible = 0
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -104,7 +104,7 @@ def build_lid(configuration, volume):
     gvolume.color = LID_COLOR[lid]
     gvolume.material = LID_MATERIAL[lid]
     gvolume.style = 1
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -120,7 +120,7 @@ def build_lead_layer(configuration, volume):
     gvolume.color = "7CFC00"
     gvolume.material = "G4_Pb"
     gvolume.style = 1
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -137,7 +137,7 @@ def build_scintillator_layer(configuration, volume):
     gvolume.color = SCINTILLATOR_COLOR[uvw]
     gvolume.material = "G4_AIR"
     gvolume.style = 0
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -164,7 +164,7 @@ def build_strip(configuration, volume):
     gvolume.style = 1
     gvolume.digitization = "ecal"
     gvolume.set_identifier("sector", sector, "layer", hipo_layer, "strip", strip)
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -174,7 +174,6 @@ def base_volume(volume):
     gvolume.mother = volume.mother
     gvolume.position = volume.position
     gvolume.rotations = [volume.rotation]
-    gvolume.g4placement_type = "passive"
     gvolume.solid = volume.solid
     gvolume.parameters = volume.dimensions
     return gvolume

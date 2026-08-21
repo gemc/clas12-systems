@@ -60,13 +60,12 @@ def build_region(configuration, volume):
     gvolume.description = f"CLAS12 Drift Chambers, Sector {sector} Region {region}"
     gvolume.position = volume.position
     gvolume.rotations = [volume.rotation]
-    gvolume.g4placement_type = "passive"
     gvolume.solid = volume.solid
     gvolume.parameters = volume.dimensions
     gvolume.color = "aa0000"
     gvolume.material = "dcgas"
     gvolume.visible = 0
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -85,7 +84,6 @@ def build_superlayer(configuration, volume):
     gvolume.description = f"Region {region}, Super Layer {superlayer}, Sector {sector}"
     gvolume.position = volume.position
     gvolume.rotations = [volume.rotation]
-    gvolume.g4placement_type = "passive"
     gvolume.solid = volume.solid
     gvolume.parameters = volume.dimensions
     gvolume.color = "99aaff"
@@ -93,7 +91,7 @@ def build_superlayer(configuration, volume):
     gvolume.style = 1
     gvolume.digitization = "dc"
     gvolume.set_identifier("sector", sector, "superlayer", superlayer, "layer", 1, "wire", 1)
-    gvolume.publish(configuration)
+    gvolume.publish_passive(configuration)
     return True
 
 
@@ -130,10 +128,9 @@ def build_ddvcs_back_shields(configuration):
         gvolume.description = f"CLAS12 Drift Chamber Sheildings for DDVCS, Sector {sector} Region 3"
         gvolume.position = f"{gemc2_fstr(x)}*cm, {gemc2_fstr(y)}*cm, {gemc2_fstr(z)}*cm"
         gvolume.rotations = [f"ordered: zxy, {90 - (sector - 1) * 60}*deg, 25*deg, 0*deg"]
-        gvolume.g4placement_type = "passive"
         gvolume.solid = "G4Trap"
         gvolume.parameters = dimensions
         gvolume.color = "555599"
         gvolume.material = "G4_GRAPHITE"
         gvolume.style = 1
-        gvolume.publish(configuration)
+        gvolume.publish_passive(configuration)

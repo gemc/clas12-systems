@@ -9,9 +9,11 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOCKER_BUILD_SUMMARY: false
 
+# Serialize deploys so the running deployment finishes and the newest pending deployment waits instead of
+# racing on identical GHCR tags.
 concurrency:
-  group: clas12-systems-deploy-${{ github.event.workflow_run.id }}
-  cancel-in-progress: true
+  group: clas12-systems-deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 on:
   workflow_run:
@@ -25,17 +27,9 @@ jobs:
     if: >-
       ${{
         github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.head_branch == github.event.repository.default_branch &&
         (
-          (
-            github.event.workflow_run.name == 'Test' &&
-            github.event.workflow_run.event == 'push'
-          ) ||
-          (
-            github.event.workflow_run.name == 'Test after gemc/src deploy' &&
-            github.event.workflow_run.event == 'workflow_dispatch'
-          )
+          github.event.workflow_run.event == 'push' ||
+          github.event.workflow_run.event == 'workflow_dispatch'
         )
       }}
     runs-on: ubuntu-latest
@@ -43,7 +37,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
       - name: Write overview
@@ -57,17 +51,9 @@ jobs:
     if: >-
       ${{
         github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.head_branch == github.event.repository.default_branch &&
         (
-          (
-            github.event.workflow_run.name == 'Test' &&
-            github.event.workflow_run.event == 'push'
-          ) ||
-          (
-            github.event.workflow_run.name == 'Test after gemc/src deploy' &&
-            github.event.workflow_run.event == 'workflow_dispatch'
-          )
+          github.event.workflow_run.event == 'push' ||
+          github.event.workflow_run.event == 'workflow_dispatch'
         )
       }}
     runs-on: ubuntu-latest
@@ -79,7 +65,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
       - id: scan
@@ -91,17 +77,9 @@ jobs:
     if: >-
       ${{
         github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.head_branch == github.event.repository.default_branch &&
         (
-          (
-            github.event.workflow_run.name == 'Test' &&
-            github.event.workflow_run.event == 'push'
-          ) ||
-          (
-            github.event.workflow_run.name == 'Test after gemc/src deploy' &&
-            github.event.workflow_run.event == 'workflow_dispatch'
-          )
+          github.event.workflow_run.event == 'push' ||
+          github.event.workflow_run.event == 'workflow_dispatch'
         )
       }}
     needs: [ overview, discover ]
@@ -120,7 +98,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -210,17 +188,9 @@ jobs:
     if: >-
       ${{
         github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.head_branch == github.event.repository.default_branch &&
         (
-          (
-            github.event.workflow_run.name == 'Test' &&
-            github.event.workflow_run.event == 'push'
-          ) ||
-          (
-            github.event.workflow_run.name == 'Test after gemc/src deploy' &&
-            github.event.workflow_run.event == 'workflow_dispatch'
-          )
+          github.event.workflow_run.event == 'push' ||
+          github.event.workflow_run.event == 'workflow_dispatch'
         )
       }}
     needs: [ build_arch, discover ]
@@ -265,17 +235,9 @@ jobs:
       ${{
         always() &&
         github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.head_branch == github.event.repository.default_branch &&
         (
-          (
-            github.event.workflow_run.name == 'Test' &&
-            github.event.workflow_run.event == 'push'
-          ) ||
-          (
-            github.event.workflow_run.name == 'Test after gemc/src deploy' &&
-            github.event.workflow_run.event == 'workflow_dispatch'
-          )
+          github.event.workflow_run.event == 'push' ||
+          github.event.workflow_run.event == 'workflow_dispatch'
         )
       }}
     needs: [ build_arch, manifest ]

@@ -25,7 +25,8 @@ gemc/src Deploy
   -> Binary Tarballs
 ```
 
-`Deploy` accepts only successful, same-repository runs on `main` with one of these workflow/event pairs:
+The `Deploy` trigger watches only these workflows on `main`, and its jobs accept their successful `push` or
+`workflow_dispatch` runs:
 
 - `Test` with a `push` event.
 - `Test after gemc/src deploy` with a `workflow_dispatch` event.
@@ -113,8 +114,10 @@ Treat changes to these jobs as changes to external published state.
 
 ## Concurrency, retries, and skipped runs
 
-Long-running workflows use concurrency groups with `cancel-in-progress: true`, so a newer run for the same ref
-or source run can cancel older work.
+Most long-running workflows use concurrency groups with `cancel-in-progress: true`, so a newer run for the
+same ref or source run can cancel older work. Upcoming in the next release, `Deploy` is the exception: all runs
+on the same ref share one group with `cancel-in-progress: false`. The running deployment finishes, while GitHub
+retains the newest pending deployment and supersedes an older pending deployment if another is scheduled.
 
 GitHub creates a `workflow_run` workflow before evaluating its job-level `if`. Consequently,
 `Retry Failed Matrix Jobs` appears as skipped after successful watched workflows. This is expected. Failed
@@ -128,7 +131,8 @@ When changing a cross-repository workflow filename or displayed `name`:
 1. Add the new target workflow first.
 2. Update every caller and `workflow_run.workflows` list.
 3. Remove the old entry point only after the callers are deployed.
-4. Keep the same-repository, branch, conclusion, workflow-name, and event checks on privileged workflows.
+4. Keep workflow-name and branch restrictions in privileged `workflow_run` triggers, and retain their
+   conclusion and event checks at job level.
 5. Validate YAML, line wrapping, and `git diff --check` before pushing.
 
 For coordinated changes to this chain, publish `clas12-systems` before `src`, and `src` before `pygemc`.

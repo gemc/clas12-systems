@@ -25,8 +25,8 @@ extern "C" {
  * - `solenoid`        : solenoid map base name (the `.dat` extension is added). Empty disables it.
  * - `torus`           : torus map base name (the `.dat` extension is added). Empty disables it.
  * - `dir`             : directory holding the `.dat` maps. Optional override; when empty the maps are
- *                       read from the `fields` directory installed next to this plugin (see
- *                       field_maps_directory()). No environment variable is consulted.
+ *                       read from `use-fields-location`, or from the `fields` directory installed next
+ *                       to this plugin when that option is empty. No environment variable is consulted.
  * - `solenoid_scale`  : scale factor applied to the solenoid map (default 1).
  * - `torus_scale`     : scale factor applied to the torus map (default 1).
  * - `solenoid_vx/vy/vz` : solenoid map displacement (Geant4 length units, default 0).
@@ -74,7 +74,6 @@ private:
 	std::string param_string(const std::string& key, const std::string& dflt) const;
 	double      param_g4number(const std::string& key, const std::string& dflt) const;
 
-	// Default field-map directory, derived from this plugin's own on-disk location:
-	// <plugin_dir>/../fields (the layout produced by `meson install`). No env var is used.
+	// Configured external map directory, or <plugin_dir>/../fields for the default install layout.
 	std::string field_maps_directory() const;
 };

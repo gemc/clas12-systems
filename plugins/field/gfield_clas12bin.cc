@@ -5,6 +5,7 @@
 
 // plugin header
 #include "gfield_clas12bin.h"
+#include "clas12_field_config.h"
 
 // gemc gfield framework
 #include "gemc/gfields/gfieldConventions.h"
@@ -44,9 +45,13 @@ double GField_Clas12BinFactory::param_g4number(const std::string& key, const std
 }
 
 std::string GField_Clas12BinFactory::field_maps_directory() const {
+#ifdef GEMC_DEFAULT_FIELD_DIR
+	return GEMC_DEFAULT_FIELD_DIR;
+#endif
+
 	// Locate this plugin's own shared object on disk and point at the sibling "fields" directory
 	// (<plugin_dir>/../fields). This mirrors the `meson install` layout: plugins land in <prefix>/lib
-	// and the downloaded maps in <prefix>/fields. No environment variable is consulted.
+	// and the installed maps in <prefix>/fields. No environment variable is consulted.
 	Dl_info info;
 	if (dladdr(reinterpret_cast<const void*>(&GFieldFactory), &info) != 0 && info.dli_fname != nullptr) {
 		const std::string plugin_path = info.dli_fname;
@@ -61,8 +66,8 @@ std::string GField_Clas12BinFactory::field_maps_directory() const {
 void GField_Clas12BinFactory::load_field_definitions(GFieldDefinition gfd) {
 	gfield_definitions = gfd;
 
-	// Resolve the directory holding the .dat maps: explicit "dir" parameter, else the "fields"
-	// directory installed next to this plugin.
+	// Resolve the .dat maps: explicit "dir", then the configured external location, then the
+	// "fields" directory installed next to this plugin.
 	std::string field_dir = param_string("dir", "");
 	if (field_dir.empty()) { field_dir = field_maps_directory(); }
 

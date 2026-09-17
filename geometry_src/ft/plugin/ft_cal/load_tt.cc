@@ -2,7 +2,6 @@
 #include "clas12_ccdb.h"
 
 // c++
-#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -24,12 +23,13 @@ bool FTCALDigitization::loadTTImpl([[maybe_unused]] int runno,
         const int crate = static_cast<int>(row[0]);
         const int slot = static_cast<int>(row[1]);
         const int channel = static_cast<int>(row[2]);
-        const int sector = static_cast<int>(row[3]);
-        const int layer = static_cast<int>(row[4]);
         const int crystal = static_cast<int>(row[5]);
-        const int order = static_cast<int>(row[6]);
+        const int ix = crystal % 22 + 1;
+        const int iy = crystal / 22 + 1;
 
-        table->addGElectronicWithIdentity({sector, layer, crystal, order},
+        // Geometry identifies crystals by {ih, iv}; getTTID() returns {ix, iy}.
+        // Crate is the frame source; slot/channel remain available in the stored address.
+        table->addGElectronicWithIdentity({ix, iy},
                                           GElectronic(crate, slot, channel,
                                                       GElectronic::ComparisonMode::crate));
     }

@@ -23,6 +23,9 @@ public:
 
     [[nodiscard]] std::unique_ptr<GDigitizedData> digitizeHitImpl(GHit* ghit, size_t hitn) override;
 
+    void stream_hit(GHit* hit, std::size_t hitn, const GSROEventContext& event,
+                    const GSROEmit& emit) const override;
+
     FTCALConstants constants;
 
 private:

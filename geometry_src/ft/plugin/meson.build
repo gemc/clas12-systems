@@ -9,7 +9,9 @@ clas12_plugins += [
     {
         'name'                : 'ft_cal',
         'sources'             : files('ft_cal/readoutSpecs.cc', 'ft_cal/calibration_constants.cc',
-                                      'ft_cal/load_tt.cc', 'ft_cal/digitize_hit.cc'),
+                                      'ft_cal/load_tt.cc', 'ft_cal/digitize_hit.cc',
+                                      'ft_cal/stream_hit.cc', 'ft_cal/sro_implementation.cc',
+                                      '../../sro/jlab_sro.cc'),
         'dependencies'        : [gemc_plugin_dep, ccdb_dep],
         'include_directories' : [include_directories('ft_cal')],
     },

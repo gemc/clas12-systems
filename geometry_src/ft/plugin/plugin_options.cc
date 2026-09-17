@@ -14,6 +14,11 @@ extern "C" GOptions* definePluginOptions() {
     options->defineSwitch(
         "ft_cal_accountForHardwareStatus", "Apply FTCAL hardware status constants when digitizing hits");
 
+    options->defineOption(
+        GVariable("ft_cal_sro_min_signal_time", -1000.0, "FTCAL SRO minimum event-relative signal time [ns]"),
+        "Lower bound including generator time, propagation, calibration offsets and smearing. "
+        "A violation fails the run; signals are never clamped to make a timing bound appear valid.");
+
     GOptions hodoOptions("ft_hodo");
     hodoOptions.defineOption(
         GVariable("ft_hodo_timeWindow", 400.0, "FTHODO electronics readout time window [ns]"),

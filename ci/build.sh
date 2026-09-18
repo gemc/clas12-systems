@@ -39,6 +39,7 @@ jobs=$(nproc 2>/dev/null || echo 4)
 jobs=$(( jobs < 16 ? jobs : 16 ))
 
 sanitizer="${1:-}"
+run_tests=1
 setup_options=(
   "--wipe"
   "--prefix=$PWD/install"
@@ -50,6 +51,12 @@ case "$sanitizer" in
     ;;
   address|thread|undefined|leak)
     setup_options+=("-Dbuildtype=debug" "-Dclas12_sanitize=$sanitizer")
+    ;;
+  profile)
+    # Debug symbols for Valgrind callgrind profiling; skip the meson test suite but still
+    # generate the geometry database the profile run needs.
+    setup_options+=("-Dbuildtype=debug")
+    run_tests=0
     ;;
   *)
     echo "Unsupported sanitizer: $sanitizer" >&2
@@ -97,17 +104,23 @@ if ! meson install -C build >> "$install_log" 2>&1; then
   exit 1
 fi
 
-echo " > meson test -C build --suite clas12" | tee "$test_log"
-if ! meson test -C build --suite clas12 --print-errorlogs -j 1 --no-rebuild --num-processes 1 -v \
-  >> "$test_log" 2>&1; then
-  echo " > Meson tests failed. Log:"
-  cat "$test_log"
-  exit 1
-fi
+if [[ "$run_tests" -eq 1 ]]; then
+  echo " > meson test -C build --suite clas12" | tee "$test_log"
+  if ! meson test -C build --suite clas12 --print-errorlogs -j 1 --no-rebuild --num-processes 1 -v \
+    >> "$test_log" 2>&1; then
+    echo " > Meson tests failed. Log:"
+    cat "$test_log"
+    exit 1
+  fi
 
-echo "   - Successful: $(grep 'Ok:' "$test_log" | awk '{sum += $2} END {print sum + 0}')" | tee -a "$test_log"
-echo "   - Failures:   $(grep 'Fail:' "$test_log" | awk '{sum += $2} END {print sum + 0}')" | tee -a "$test_log"
-echo " > Complete test log: $test_log"
+  ok=$(grep 'Ok:' "$test_log" | awk '{sum += $2} END {print sum + 0}')
+  fail=$(grep 'Fail:' "$test_log" | awk '{sum += $2} END {print sum + 0}')
+  echo "   - Successful: $ok" | tee -a "$test_log"
+  echo "   - Failures:   $fail" | tee -a "$test_log"
+  echo " > Complete test log: $test_log"
+else
+  echo " > Skipping meson test suite (profile build)"
+fi
 
 echo " > buidling geometry" | tee "$geo_log"
 if ! ./generate_geometry.zsh \

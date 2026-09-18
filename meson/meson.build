@@ -1,9 +1,58 @@
 cmake = import('cmake')
 
 sys = host_machine.system()
+cpp = meson.get_compiler('cpp')
+
+# Explicit installation paths bypass dependency discovery and the corresponding subprojects.
+external_deps = {}
+foreach name, spec : {
+    'ccdb' : ['ccdb', 'CCDB/Calibration.h'],
+    'hipo' : ['hipo4', 'hipo4/writer.h'],
+    'clas12-cmag' : ['cMag', 'magfield.h'],
+}
+    location = get_option('use-' + name + '-location')
+    if location == ''
+        continue
+    endif
+    if not fs.is_absolute(location)
+        error('-Duse-' + name + '-location must be an absolute installation path.')
+    endif
+    incdir = location / 'include'
+    if name == 'clas12-cmag' and not fs.is_file(incdir / spec[1])
+        incdir = location / 'includes'
+    endif
+    if not fs.is_file(incdir / spec[1])
+        error('Missing ' + spec[1] + ' in the ' + name + ' installation at ' + location)
+    endif
+    # Check the requested prefix before find_library, which can also search system directories.
+    libdir = ''
+    static_lib = false
+    suffixes = sys == 'darwin' ? ['.dylib', '.a'] : ['.so', '.a']
+    if get_option('prefer_static')
+        suffixes = ['.a'] + suffixes
+    endif
+    foreach suffix : suffixes
+        foreach dirname : ['lib', 'lib64']
+            if libdir == '' and fs.is_file(location / dirname / ('lib' + spec[0] + suffix))
+                libdir = location / dirname
+                static_lib = suffix == '.a'
+            endif
+        endforeach
+    endforeach
+    if libdir == ''
+        error('Missing library lib' + spec[0] + ' in ' + location + '/lib or /lib64')
+    endif
+    external_deps += {name : declare_dependency(
+        include_directories : include_directories(incdir, is_system : true),
+        dependencies : cpp.find_library(spec[0], dirs : libdir, static : static_lib),
+    )}
+    message('Using installed ' + name + ' at ' + location)
+endforeach
+
 
 cmake_opts = cmake.subproject_options()
 cmake_opts.add_cmake_defines({
+    'CCDB_USE_SYSTEM_SQLITE' : true,
     'BUILD_STATIC_LIBS' : true,
     'BUILD_SHARED_LIBS' : false,
     'ZLIB_USE_STATIC_LIBS' : false,
@@ -13,6 +62,23 @@ cmake_opts.add_cmake_defines({
 })
 cmake_opts.append_compile_args('c',   '-fPIC', '-w')
 cmake_opts.append_compile_args('cpp', '-fPIC', '-w')
+
+# Bundled subprojects are build-time dependencies of the CLAS12 plugins (the installed GEMC already
+# ships them), so their libraries, headers, tools, and tests are not installed/registered unless the
+# caller opts in. These strings feed the meson-subproject default_options below; the cmake ccdb
+# subproject is gated through set_install().
+include_subproject_install = get_option('include-subproject-install')
+subproject_install_option = include_subproject_install ? 'true' : 'false'
+include_subproject_tests = get_option('include-subproject-tests')
+subproject_tests_option = include_subproject_tests ? 'true' : 'false'
+cmake_opts.set_install(include_subproject_install)
+
+# Meson's CMake converter otherwise treats CCDB's internal object archive, tests, and benchmark as
+# installable targets when subproject installation is enabled. Only its public libraries belong in a
+# prefix.
+foreach target : ['ccdb_objs', 'ccdb_tests', 'CCDB_bn_sqlite']
+    cmake_opts.set_install(false, target : target)
+endforeach
 
 zlib_dep = dependency('zlib', static : false, required : true)
 # Link CLHEP and Geant4 statically (static : true) so the dlopen-able plugins embed only the
@@ -34,6 +100,17 @@ if _gemc_prog.found()
     ).stdout().strip()
     if _gemc_root != '' and fs.is_dir(_gemc_root / 'lib' / 'pkgconfig')
         gemc_pkgconfig_dir = _gemc_root / 'lib' / 'pkgconfig'
+    endif
+    # Installing into GEMC's own prefix puts the .gplugin libraries on GEMC's default plugin search
+    # path, so GEMC_PLUGIN_PATH is not needed at runtime. Warn when the configured prefix diverges
+    # from the detected GEMC prefix so the mismatch is not discovered later as a plugin-load failure.
+    if _gemc_root != '' and get_option('prefix') != _gemc_root
+        warning(
+            'clas12-systems install prefix (' + get_option('prefix') + ') differs from the detected ' +
+            'GEMC prefix (' + _gemc_root + '). Installed .gplugin libraries will not be on GEMC\'s ' +
+            'default search path: set GEMC_PLUGIN_PATH at runtime, or reconfigure with the GEMC prefix ' +
+            'so no runtime variable is needed (see the README "Plugin Path" section).',
+        )
     endif
 endif
 
@@ -167,6 +244,8 @@ if gemc_prefix != ''
     endif
 endif
 
+mysql_prefix = ''
+ccdb_platform_link_args = []
 if sys == 'darwin'
     brew = find_program('brew', required : false)
     if brew.found()
@@ -201,11 +280,13 @@ if sys == 'darwin'
 
         if zstd_prefix != ''
             cmake_opts.append_link_args('-L' + zstd_prefix / 'lib')
+            ccdb_platform_link_args += '-L' + zstd_prefix / 'lib'
             message('Using zstd lib dir: ' + zstd_prefix / 'lib')
         endif
 
         if openssl_prefix != ''
             cmake_opts.append_link_args('-L' + openssl_prefix / 'lib')
+            ccdb_platform_link_args += '-L' + openssl_prefix / 'lib'
             message('Using openssl lib dir: ' + openssl_prefix / 'lib')
         endif
 
@@ -215,19 +296,71 @@ if sys == 'darwin'
     endif
 endif
 
-ccdb_proj = cmake.subproject('ccdb', options : cmake_opts)
-ccdb_dep = ccdb_proj.dependency('ccdb', include_type : 'system')
+# CCDB is compiled and linked the same way as in clas12Tags (../clas12Tags/source/meson/meson.build): the
+# static ccdb_static archive (output name libccdb.a) is embedded into the plugins, not the shared libccdb.dylib.
+# The shared library is never installed and its CMake install-name points into the build prefix, so a dlopen of
+# the plugin cannot resolve it. Static linking is safe because CCDB_USE_SYSTEM_SQLITE makes ccdb use the same
+# system SQLite as GEMC (no duplicate sqlite3 state).
+if external_deps.has_key('ccdb')
+    ccdb_static_dep = external_deps['ccdb']
+else
+    ccdb_proj = cmake.subproject('ccdb', options : cmake_opts)
+    if ccdb_proj.target_list().contains('ccdb_sqlite_static')
+        error('The CCDB system-SQLite wrap patch is missing from the existing subproject checkout. ' +
+              'Run `meson subprojects purge --confirm ccdb`, then configure a clean build directory.')
+    endif
+    ccdb_static_dep = ccdb_proj.dependency('ccdb_static', include_type : 'system')
+endif
 
-hipo_cpp_sp = subproject(
-    'hipo-cpp',
-    default_options : [
-        'buildtype=release',
-        'default_library=static',
-        'cpp_std=c++17',
-        'dataframes=false',
-        'warning_level=0',
-    ],
+# CMake's legacy FindMySQL module supplies raw linker flags that Meson's CMake converter does not propagate
+# through the static archive, so add mysql_config --libs (and the macOS zstd/openssl -L paths) explicitly.
+# This mirrors clas12Tags' ccdb_link_dep so the plugins resolve ccdb's MySQL, SQLite, and pthread symbols.
+ccdb_config_names = []
+if mysql_prefix != ''
+    ccdb_config_names += [mysql_prefix / 'bin/mysql_config', mysql_prefix / 'bin/mariadb_config']
+endif
+ccdb_mysql_config = find_program(ccdb_config_names + ['mysql_config', 'mariadb_config'])
+ccdb_mysql_link_args = run_command(ccdb_mysql_config, '--libs', check : true).stdout().split()
+ccdb_dep = declare_dependency(
+    dependencies : [ccdb_static_dep, dependency('sqlite3', static : false), dependency('threads')],
+    link_args : ccdb_platform_link_args + ccdb_mysql_link_args,
 )
-hipo_cpp_dep = hipo_cpp_sp.get_variable('hipo_dep').as_system()
 
-clas12_cmag_dep = dependency('clas12-cmag', include_type : 'system', default_options : ['warning_level=0'])
+if external_deps.has_key('hipo')
+    hipo_cpp_dep = declare_dependency(
+        dependencies : [
+            external_deps['hipo'],
+            dependency('liblz4', version : '>=1.9', allow_fallback : false),
+            dependency('fmt', version : '>=10.2.1', allow_fallback : false),
+        ],
+    ).as_system()
+else
+    hipo_cpp_sp = subproject(
+        'hipo-cpp',
+        default_options : [
+            'buildtype=release',
+            'default_library=static',
+            'cpp_std=c++17',
+            'dataframes=false',
+            'include-subproject-install=' + subproject_install_option,
+            'include-subproject-tests=' + subproject_tests_option,
+            'warning_level=0',
+        ],
+    )
+    hipo_cpp_dep = hipo_cpp_sp.get_variable('hipo_dep').as_system()
+endif
+
+if external_deps.has_key('clas12-cmag')
+    clas12_cmag_dep = declare_dependency(
+        dependencies : [external_deps['clas12-cmag'], cpp.find_library('m', required : false)],
+    )
+else
+    clas12_cmag_dep = dependency(
+        'clas12-cmag',
+        include_type : 'system',
+        default_options : [
+            'include-subproject-install=' + subproject_install_option,
+            'warning_level=0',
+        ],
+    )
+endif

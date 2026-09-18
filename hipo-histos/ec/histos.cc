@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -516,6 +517,16 @@ std::vector<std::string> ECHistos::comparison_2d_names() const
 std::vector<TH1 *> ECHistos::diagnostic_histos() const
 {
     std::vector<TH1 *> histos = comparison_histos();
+    // Exclude the per-hit sector histograms from the pass/fail gate: every shower deposits many
+    // correlated hits in the single sector fixed by the primary, so a per-bin Poisson chi2 counts
+    // each hit as an independent trial and inflates chi2/ndf by ~the hit multiplicity. They stay in
+    // comparison_histos() so the overlay plots are still produced (without a pass/fail banner);
+    // ec_primary_phi_sector already tests per-sector agreement with a correct per-event error model.
+    histos.erase(std::remove_if(histos.begin(), histos.end(),
+                                [this](TH1 *h) {
+                                    return h == true_ec_phi_sector_.get() || h == adc_sector_.get();
+                                }),
+                 histos.end());
     for (int view_index = 0; view_index < kViews; ++view_index) {
         for (int component = 0; component < kComponents; ++component) {
             histos.push_back(adc_[view_index][component].get());
@@ -539,6 +550,12 @@ std::vector<TH1 *> ECHistos::diagnostic_histos() const
 std::vector<std::string> ECHistos::diagnostic_names() const
 {
     std::vector<std::string> names = comparison_names();
+    // Keep in sync with diagnostic_histos(): the per-hit sector histograms are dropped from the gate.
+    names.erase(std::remove_if(names.begin(), names.end(),
+                               [](const std::string &name) {
+                                   return name == "ec_true_phi_sector" || name == "ec_adc_sector";
+                               }),
+                names.end());
     for (int view_index = 0; view_index < kViews; ++view_index) {
         const auto view = view_name(view_index);
         for (int component = 0; component < kComponents; ++component) {
@@ -563,6 +580,17 @@ std::vector<std::string> ECHistos::diagnostic_names() const
 
 double ECHistos::diagnostic_scale(const std::string &name, bool normalize) const
 {
+    // Per-sector occupancy is always normalized by the number of primaries generated into that
+    // sector (independent of the event-count normalization below), so the comparison measures
+    // detector response per incident primary and is not biased by the generator's irreducible
+    // per-sector count fluctuation between two finite, differently-seeded samples.
+    int occupancy_sector = 0;
+    if (std::sscanf(name.c_str(), "ec_s%d_occupancy", &occupancy_sector) == 1 &&
+        occupancy_sector >= 1 && occupancy_sector <= kSectors) {
+        const double primaries = primary_phi_sector_->GetBinContent(occupancy_sector);
+        return primaries > 0.0 ? 1.0 / primaries : 1.0;
+    }
+
     const bool normalizable = name.find("_adc") != std::string::npos ||
                               name.find("_tdc") != std::string::npos ||
                               name.find("_occupancy") != std::string::npos ||

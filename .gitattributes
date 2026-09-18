@@ -1,2 +1,7 @@
 # CCDB v1.99.7 stores MySQLDataProvider.cc with CRLF line endings. Preserve the patch's mixed endings.
 subprojects/packagefiles/ccdb_ssl_no_enforce.patch -text
+
+# Unified-diff context lines contain a format-significant leading space.
+subprojects/packagefiles/hipo_install_option.patch whitespace=-blank-at-eol
+subprojects/packagefiles/clas12_cmag_install_option.patch whitespace=-blank-at-eol
+subprojects/packagefiles/ccdb_system_sqlite.patch whitespace=-blank-at-eol

@@ -10,6 +10,7 @@
 [![Nightly Dev Release][badge-dev-release]][workflow-dev-release]
 [![HIPO Histos Comparison][badge-hipo-histos]][workflow-hipo-histos]
 [![macOS Tarball][badge-macos-tarball]][workflow-macos-tarball]
+[![Valgrind Profile][badge-valgrind-profile]][workflow-valgrind-profile]
 
 [badge-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml/badge.svg
 [badge-ascii-geometry]: https://github.com/gemc/clas12-systems/workflows/ASCII%20Geometry%20Comparison/badge.svg
@@ -21,6 +22,7 @@
 [badge-dev-release]: https://github.com/gemc/clas12-systems/actions/workflows/dev_release.yml/badge.svg
 [badge-hipo-histos]: https://github.com/gemc/clas12-systems/actions/workflows/hipo_histos_compare.yml/badge.svg
 [badge-macos-tarball]: https://github.com/gemc/clas12-systems/actions/workflows/macos_tarball.yml/badge.svg
+[badge-valgrind-profile]: https://github.com/gemc/clas12-systems/actions/workflows/valgrind_profile.yml/badge.svg
 [workflow-test]: https://github.com/gemc/clas12-systems/actions/workflows/test.yml
 [workflow-ascii-geometry]: https://github.com/gemc/clas12-systems/actions/workflows/clas12_geo_compare.yml
 [workflow-deploy]: https://github.com/gemc/clas12-systems/actions/workflows/deploy.yml
@@ -31,6 +33,7 @@
 [workflow-dev-release]: https://github.com/gemc/clas12-systems/actions/workflows/dev_release.yml
 [workflow-hipo-histos]: https://github.com/gemc/clas12-systems/actions/workflows/hipo_histos_compare.yml
 [workflow-macos-tarball]: https://github.com/gemc/clas12-systems/actions/workflows/macos_tarball.yml
+[workflow-valgrind-profile]: https://github.com/gemc/clas12-systems/actions/workflows/valgrind_profile.yml
 
 CLAS12 GEMC Systems contains the GEMC3 implementation of CLAS12 detector geometry systems and their
 system-specific plugins. It is the CLAS12 companion repository to the core GEMC application and Python geometry
@@ -215,6 +218,48 @@ meson compile -C build
 meson test -C build --print-errorlogs
 ```
 
+Use these independent options to reuse existing library installations and magnetic field maps. The three
+library options and configured field-plugin default are upcoming in the next release.
+
+| Meson option | Path to supply |
+| --- | --- |
+| `-Duse-ccdb-location=<dir>` | CCDB installation prefix |
+| `-Duse-hipo-location=<dir>` | HIPO installation prefix |
+| `-Duse-clas12-cmag-location=<dir>` | clas12-cmag installation prefix |
+| `-Duse-fields-location=<dir>` | Directory containing the CLAS12 magnetic field maps |
+
+For example, to reuse all four:
+
+```shell
+meson setup build --prefix="$PWD/install" \
+  -Duse-ccdb-location=/absolute/path/to/ccdb \
+  -Duse-hipo-location=/absolute/path/to/hipo \
+  -Duse-clas12-cmag-location=/absolute/path/to/clas12-cmag \
+  -Duse-fields-location=/absolute/path/to/magfield
+```
+
+Each option defaults to empty and can be set independently. An empty library option preserves the existing
+dependency setup. A supplied library path must be absolute and skips that subproject; invalid installations
+fail configuration. Headers are expected under `include/` (also `includes/` for older clas12-cmag installations),
+and libraries under `lib/` or `lib64/`. Meson's `-Dprefer_static=true` prefers static libraries when both kinds
+are installed; static libraries used by plugins must be built with position-independent code. Installed CCDB
+needs MySQL/MariaDB client development tools and SQLite; installed HIPO needs LZ4 and fmt development packages.
+External installations are not copied by `meson install`.
+
+With `-Duse-fields-location=<dir>`, no maps are fetched or installed, and the field plugin uses that directory
+by default. An explicit field `dir` parameter still takes precedence. When the option is empty, maps come from
+the `magfield` git-lfs subproject and are installed under `<prefix>/fields`; the plugin locates that directory
+relative to its own installed location. Fetching the maps requires git-lfs.
+
+Upcoming in the next release: bundled CCDB uses system SQLite through `ccdb_system_sqlite.patch`, avoiding its
+private SQLite amalgamation. Existing unpatched CCDB subproject checkouts must be refreshed before rebuilding:
+
+```shell
+meson subprojects purge --confirm ccdb
+```
+
+Then configure a clean build directory so Meson fetches CCDB and applies the wrap patches.
+
 The geometry tests run each registered Python system and write the combined SQLite database:
 
 ```shell
@@ -283,10 +328,22 @@ place, `mariadb-connector-c` connects to clasdb and is the recommended connector
 
 ## Plugin Path
 
-CLAS12 system plugins are installed as `.gplugin` shared libraries under `<prefix>/lib/`. Because GEMC and
-CLAS12 systems are installed to separate prefixes, GEMC needs to know where to look.
+CLAS12 system plugins are installed as `.gplugin` shared libraries under `<prefix>/lib/`. GEMC locates plugins
+by searching, in order: `GEMC_PLUGIN_PATH`, its own `lib/` and `build/` directories, then the OS
+dynamic-library search path (`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS).
 
-Set `GEMC_PLUGIN_PATH` to the CLAS12 systems library directory before running `gemc`:
+The simplest setup is to install the CLAS12 systems into GEMC's own prefix, so the `.gplugin` libraries land in
+the `lib/` directory GEMC already searches and no runtime variable is needed. GEMC's prefix is one level above
+its `bin/` directory, so `command -v gemc` derives it:
+
+```shell
+meson setup build --prefix="$(dirname "$(dirname "$(command -v gemc)")")"
+meson install -C build
+gemc dc.yaml
+```
+
+If GEMC is on `PATH` but a different prefix is configured, Meson prints a warning at configure time. In that
+case set `GEMC_PLUGIN_PATH` to the CLAS12 systems library directory before running `gemc`:
 
 ```shell
 export GEMC_PLUGIN_PATH=$(pkg-config --variable=plugindir clas12-systems)
@@ -298,9 +355,6 @@ Or pass it on the command line:
 ```shell
 gemc dc.yaml -plugin_path=/path/to/clas12-systems/lib
 ```
-
-When `GEMC_PLUGIN_PATH` is not set, GEMC falls back to its own `lib/` and `build/` directories and then
-the OS dynamic-library search path (`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS).
 
 If a plugin is not found, GEMC prints the current value of `GEMC_PLUGIN_PATH` alongside the error to help
 diagnose path problems.
@@ -360,9 +414,43 @@ parameters.
 Any additional scalar keys (per-map displacements, overall origin/rotation, `interpolation`) are forwarded
 verbatim to the plugin.
 
-Field maps are downloaded to `<prefix>/fields` during `meson install` (see `meson/install_fields.py`) and the
-plugin reads them from the `fields` directory installed next to it (`<plugin_dir>/../fields`). No `FIELD` or
-`FIELD_DIR` environment variable is needed at runtime; an explicit `dir` parameter can override the location.
+Field maps come from the `magfield` git-lfs subproject and are copied to `<prefix>/fields` during `meson
+install` (see `meson/install_fields.py`); the plugin reads them from the `fields` directory installed next to
+it (`<plugin_dir>/../fields`). Configuring with `-Duse-fields-location=<dir>` skips the subproject and points
+at an existing maps directory instead (nothing is cloned or installed). No `FIELD` or `FIELD_DIR` environment
+variable is needed at runtime; an explicit `dir` parameter can override the location.
+
+<br/>
+
+## Streaming Readout (SRO)
+
+**Upcoming in the next release.** CLAS12 systems can emit streaming-readout (SRO) frames in the JLAB DAQ binary
+format instead of, or alongside, ordinary event output. GEMC owns the generic `sro` streamer; a system plugin
+supplies the payloads by exporting a `GSROImplementationFactory` next to its digitizer. Currently only **FT-Cal**
+supplies SRO payloads (through `ft_cal.gplugin`); the other FT digitizers keep their normal output with no SRO
+model.
+
+Activate SRO from the command line by selecting the `sro` streamer format and the plugin that provides the
+payloads, and by giving the acquisition a non-zero event time width:
+
+```shell
+gemc geometry_src/ft/ft.yaml -n=10000 \
+  -gstreamer='[{format: sro, filename: ftcal_sro, implementation: ft_cal}]' \
+  -eventTimeWidth='10*ns'
+```
+
+- `format: sro` selects GEMC's SRO streamer; `implementation: ft_cal` names the plugin that produces the
+  payloads; `filename` is the output basename.
+- `-eventTimeWidth` sets the spacing between consecutive events on the acquisition timeline. Its default of zero
+  rejects an SRO run, so it must be set explicitly (the `10*ns` above is an example, not a measured CLAS12 beam
+  parameter). Ordinary output runs do not need it.
+- Output files are written per crate as `<basename>_r<resolved_run>_crate<crate>.ev`; reusing a basename and run
+  overwrites them.
+
+The FT bootstrap registrar `ft.gplugin` supplies the options for `ft_cal.gplugin`, so no extra options node is
+needed. See [`geometry_src/sro/README.md`](geometry_src/sro/README.md) for the translation-table convention,
+worker timing model (including `ft_cal_sro_min_signal_time`), the binary layout, and the `sro` test suite; the
+ported DAQ definitions and their provenance live in [`geometry_src/sro/daq/README.md`](geometry_src/sro/daq/README.md).
 
 <br/>
 

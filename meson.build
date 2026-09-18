@@ -190,6 +190,9 @@ foreach plugin : clas12_plugins
     clas12_plugin_targets += plugin_target
 endforeach
 
+# Offline JLAB encoding and FT-Cal translation-table integration tests.
+subdir('geometry_src/sro')
+
 # ---------------------------------------------------------------------------
 # CCDB connectivity smoke test
 #
@@ -217,15 +220,28 @@ test(
 # ---------------------------------------------------------------------------
 # CLAS12 magnetic field maps
 #
-# Download the binary/ascii field maps to <prefix>/fields during `meson install` (skips files
-# that already exist). The clas12-cmag field plugin reads them from the "fields" directory installed
-# next to it (<plugin_dir>/../fields), so no FIELD_DIR environment variable is needed at runtime.
+# The clas12-cmag field plugin reads the maps from the "fields" directory installed next to it
+# (<plugin_dir>/../fields), so no FIELD_DIR environment variable is needed at runtime.
+#
+# With -Duse-fields-location=<dir> the build uses an existing external maps directory as-is: nothing
+# is cloned and nothing is installed. Otherwise the maps are taken from the magfield git-lfs
+# subproject and copied into <prefix>/fields at `meson install`.
 # ---------------------------------------------------------------------------
-meson.add_install_script(
-    python_exe,
-    meson.project_source_root() / 'meson' / 'install_fields.py',
-    install_tag : 'fields',
-)
+fields_location = get_option('use-fields-location')
+if fields_location != ''
+    fields_dir = fields_location
+    message('Using external CLAS12 field maps at ' + fields_dir + ' (field-map install skipped).')
+else
+    fields_dir = get_option('prefix') / 'fields'
+    magfield_proj = subproject('magfield')
+    magfield_source_dir = magfield_proj.get_variable('magfield_source_dir')
+    meson.add_install_script(
+        python_exe,
+        meson.project_source_root() / 'meson' / 'install_fields.py',
+        magfield_source_dir,
+        install_tag : 'fields',
+    )
+endif
 
 # ---------------------------------------------------------------------------
 # pkg-config file — exposes plugindir so CI can auto-discover installed plugins

@@ -2,14 +2,12 @@ name: Valgrind Profile
 
 run-name: ${{ github.event.head_commit.message || github.event.pull_request.title || github.workflow }}
 
-# Profiles a full CLAS12 configuration (experiments/rga.yaml) under Valgrind's callgrind tool and
-# publishes a per-detector CEst table plus a qcachegrind reading guide. gemc comes from the base
-# image; the detector digitization plugins are built here with debug symbols.
+# Profiles a full CLAS12 configuration (experiments/rga.yaml) under callgrind. All profiling and
+# reporting is done by the Callgrinder action (gemc/Callgrinder); this workflow builds the detector
+# plugins (with debug symbols) and geometry and hands the command to the action.
 
 on:
   # Weekly, Monday 02:10 UTC. Callgrind is ~50x slower than a native run, so this is not a per-push check.
-  schedule:
-    - cron: '10 2 * * 1'
   workflow_dispatch:
     inputs:
       events:
@@ -17,6 +15,10 @@ on:
         required: false
         default: ''
         type: string
+  workflow_run:
+    workflows: [ "Test" ]
+    types: [ completed ]
+    branches: [ main ]
 
 permissions:
   contents: read
@@ -31,8 +33,10 @@ jobs:
     name: Profile rga
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    # Debug-symbols gemc image (gemc, Geant4, and CLHEP built with symbols) so callgrind can name
+    # their routines. Published by gemc/src Deploy.
     container:
-      image: ghcr.io/gemc/src:dev-ubuntu-24.04
+      image: ghcr.io/gemc/src:dev-ubuntu-26.04-debug
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -55,20 +59,37 @@ jobs:
       - name: Build CLAS12 plugins and geometry (profile build)
         run: ./ci/build.sh profile
 
-      - name: Profile experiments/rga.yaml
+      - name: Prepare environment
         shell: bash
         run: |
           set -euo pipefail
           export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
           . /usr/local/bin/docker-entrypoint.sh
-          events="${{ github.event.inputs.events || '100' }}"
-          ./ci/profile_gemc.sh -e rga -n "${events}"
+          # rga.yaml references 'sql: gemc.sqlite' relative to the working directory; the plugins are
+          # discovered through GEMC_PLUGIN_PATH and the clas12-cmag field plugin resolves its maps from
+          # <plugindir>/../fields. gemc finds its Geant4 data through the installed package cache.
+          {
+            echo "GEMC_PLUGIN_PATH=${PWD}/install/lib${GEMC_PLUGIN_PATH:+:${GEMC_PLUGIN_PATH}}"
+            echo "PROFILE_WORKDIR=${PWD}/experiments"
+          } >> "${GITHUB_ENV}"
+          dirname "$(command -v gemc)" >> "${GITHUB_PATH}"
 
-      - name: Upload callgrind profile
+      - name: Profile experiments/rga.yaml
+        uses: gemc/Callgrinder@v1
+        with:
+          mode: profile
+          name: rga
+          command: gemc rga.yaml -n={events} -nthreads=1
+          events: ${{ github.event.inputs.events || '100' }}
+          config: ci/callgrinder.json
+          working-directory: ${{ env.PROFILE_WORKDIR }}
+          output-dir: callgrinder-parts
+
+      - name: Upload profile
         uses: actions/upload-artifact@v7
         with:
-          name: callgrind-rga
-          path: profile-logs
+          name: callgrinder-rga
+          path: callgrinder-parts
           if-no-files-found: error
           retention-days: 30
 
@@ -78,68 +99,17 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Download callgrind profile
+      - name: Download profile
         uses: actions/download-artifact@v7
         with:
-          name: callgrind-rga
+          name: callgrinder-rga
           path: profiles
 
-      - name: Write category table and qcachegrind guidance
-        shell: bash
-        run: |
-          {
-            echo "## Valgrind callgrind profile — CLAS12 rga"
-            echo
-            echo "\`experiments/rga.yaml\` (dc, ec, ft, ftof, ltcc, pcal) was profiled under"
-            echo "\`valgrind --tool=callgrind --cache-sim=yes --branch-sim=yes\` (single thread). gemc comes"
-            echo "from the base image; the detector digitization plugins are built here with debug symbols."
-            echo
-            echo "### Time per category (CEst)"
-            echo
-            echo "The table below sums the **inclusive** cost of each category's entry function, in CEst"
-            echo "(cycle estimation: \`Ir + 10*L1_misses + 100*LL_misses\`). Each detector's digitization is"
-            echo "discovered from every \`::digitizeHit\` / \`::stream_hit\` in the profile, so it appears as"
-            echo "its own row (ecal, ftof, dc, ltcc, ft_cal, ...). Categories use inclusive cost and overlap,"
-            echo "so they do not sum to 100%."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          fragment="profiles/summary.rga.md"
-          if [[ -f "$fragment" ]]; then
-            echo >> "$GITHUB_STEP_SUMMARY"
-            cat "$fragment" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          {
-            echo
-            echo "The full profile is attached as the \`callgrind-rga\` artifact (\`callgrind.out.rga\`)."
-            echo
-            echo "### Reading the profile with qcachegrind"
-            echo
-            echo "The callgrind output is best explored interactively with **qcachegrind** (Qt) or"
-            echo "**kcachegrind** (KDE). The profile was dumped with \`--dump-instr=yes\` and"
-            echo "\`--collect-jumps=yes\`, so per-source-line and per-instruction annotation and the"
-            echo "jump/branch arrows are available."
-            echo
-            echo "1. **Install a viewer.** macOS: \`brew install qcachegrind\` (\`brew install graphviz\`"
-            echo "   enables call graphs). Debian/Ubuntu: \`apt-get install kcachegrind graphviz\`."
-            echo "   Fedora/AlmaLinux: \`dnf install kcachegrind graphviz\`."
-            echo "2. **Download and unzip** the \`callgrind-rga\` artifact and open it:"
-            echo "   \`qcachegrind callgrind.out.rga\` (or File → Open)."
-            echo "3. **Pick the cost type** in the toolbar dropdown. Because the run enables cache and branch"
-            echo "   simulation, **\`CEst\`** (cycle estimation) is available and matches the table above;"
-            echo "   \`Ir\` (instruction reads) is the simpler default. Each row shows \`Incl.\` (self +"
-            echo "   callees) and \`Self\` costs; toggle \`%\` (Relative) and \`Cycle Detection\` as needed."
-            echo "4. **Find hotspots** in the left **Flat Profile**: sort by \`Self\` for the functions doing"
-            echo "   the work, or by \`Incl.\` for whole call subtrees (a detector's digitization, field"
-            echo "   swimming, hit collection)."
-            echo "5. **Split by detector** with **Grouping → Source File / Class**: each detector's"
-            echo "   digitization class and geometry code aggregate into one row."
-            echo "6. **Drill into source** with the **Source** and **Machine Code** tabs for per-line cost, and"
-            echo "   use the **Callers** / **Callees** / **Call Graph** panels to follow the call structure."
-            echo
-            echo "For a non-interactive summary, \`callgrind_annotate callgrind.out.rga\` prints the top"
-            echo "functions and, with \`--auto=yes\`, annotated source."
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Aggregate the category table and qcachegrind guidance
+        uses: gemc/Callgrinder@v1
+        with:
+          mode: report
+          input-dir: profiles
 
       - name: Gate on profile result
         if: needs.profile.result != 'success'

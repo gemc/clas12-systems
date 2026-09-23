@@ -69,12 +69,12 @@ deployment-authorized and therefore rebuilds the CLAS12 images.
   - Publication: non-PR runs update the rolling `histo-gemc3` release assets.
 - [`valgrind_profile.yml`](valgrind_profile.yml) — **Valgrind Profile**
   - Trigger: a weekly schedule (Monday 02:10 UTC) and manual dispatch with an event count.
-  - Effect: builds the detector plugins with debug symbols (`ci/build.sh profile`), then profiles
-    `experiments/rga.yaml` under `valgrind --tool=callgrind --cache-sim=yes --branch-sim=yes` (default 100
-    events) and uploads the callgrind profile with a per-detector CEst table from `ci/profile_summary.py`.
-  - Reporting: the `guidance` job publishes the category table plus qcachegrind/kcachegrind reading
-    instructions to the run summary. Each detector's digitization is discovered from `::digitizeHit` /
-    `::stream_hit`, so a new detector plugin appears on its own row.
+  - Effect: builds the detector plugins with debug symbols (`ci/build.sh profile`) and geometry, then the
+    [Callgrinder action](https://github.com/gemc/Callgrinder) profiles `experiments/rga.yaml` under callgrind
+    and reports a per-detector CEst table (default 100 events). Categories come from `ci/callgrinder.json`.
+  - Reporting: the `guidance` job runs Callgrinder's `report` mode to publish the category table plus the
+    qcachegrind reading guide. Each detector's digitization is discovered from `::digitizeHit` / `::stream_hit`,
+    so a new detector plugin appears on its own row.
 
 ## Release, documentation, and maintenance workflows
 

@@ -14,6 +14,7 @@ if root_config.found()
             'ec/histos.cc',
             'ft/histos.cc',
             'ftof/histos.cc',
+            'htcc/histos.cc',
             'ltcc/histos.cc',
             'pcal/histos.cc',
             'histos_compare.cc',

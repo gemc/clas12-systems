@@ -31,6 +31,9 @@ Current subsystem support:
   combined ADC/TDC spectra are overlaid and the per-sector hit-count and y-vs-x maps are compared.
 - `ltcc`: reads `LTCC::adc`, `LTCC::tdc`, and `MC::True`. It compares the `ADC` HIPO column corresponding to
   GEMC2's `ADC_ADC`, split by PMT side and combined, as well as TDC, occupancy, true-hit time, and global XY.
+- `htcc`: reads `HTCC::adc`, `HTCC::tdc`, and `MC::True` (detector 15). Like `ltcc`, it compares the `ADC`
+  and `TDC` HIPO columns split by half sector (the `layer`) and combined, per-sector ring-vs-half hit-count
+  occupancy, the true-hit time, and the global XY map.
 - `ft`: reads `FTCAL::adc`, `FTHODO::adc`, and `FTTRK::adc`. It compares the `ADC` HIPO column corresponding to
   GEMC2's `ADC_ADC` independently for all three Forward Tagger detectors.
 

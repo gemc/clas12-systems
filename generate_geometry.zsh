@@ -36,6 +36,7 @@ install_experiments=1
 # explicit so adding CAD to another detector only requires adding its directory name here.
 typeset -A stl_directories=(
 	ltcc stls
+	htcc stls
 )
 
 while (( $# > 0 )); do

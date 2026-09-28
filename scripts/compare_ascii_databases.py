@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 from pathlib import Path
 import shutil
@@ -330,7 +331,12 @@ def new_geometry_record(row: list[str]) -> dict[str, str]:
     dimensions = normalize_dimensions(row[2], solid, "pygemc")
     solids_opr = normalize_digitization(row[16])
     if solids_opr:
-        solid = normalize_field(f"Operation: {solids_opr}")
+        # pygemc encodes GEMC2's Operation:@ absolute-placement marker as a leading "@" token, matching
+        # the clas12Tags "Operation:@ a - b" type string; a plain boolean stays "Operation: a - b".
+        if solids_opr.startswith("@ "):
+            solid = normalize_field(f"Operation:@ {solids_opr[2:]}")
+        else:
+            solid = normalize_field(f"Operation: {solids_opr}")
 
     # A copied volume stores its source in copyOf; clas12Tags encodes it in the
     # type column as "CopyOf <source>" and prints its unused dimensions as zero.
@@ -452,6 +458,49 @@ def combined_semantic_records(
     return records
 
 
+_LENGTH_UNITS = {"mm": 1.0, "cm": 10.0, "m": 1000.0}
+_ANGLE_UNITS = {"deg": 1.0, "rad": 180.0 / math.pi}
+
+
+def _canonical_token(token: str) -> tuple[str, object]:
+    """Return (kind, value) with length/angle magnitudes converted to a common scale."""
+    magnitude, _, unit = token.partition("*")
+    try:
+        value = float(magnitude)
+    except ValueError:
+        return ("str", token)
+    if unit in _LENGTH_UNITS:
+        return ("length", value * _LENGTH_UNITS[unit])
+    if unit in _ANGLE_UNITS:
+        return ("angle", value * _ANGLE_UNITS[unit])
+    return ("number:" + unit, value)
+
+
+def _tokens_equivalent(a: str, b: str) -> bool:
+    ka, va = _canonical_token(a)
+    kb, vb = _canonical_token(b)
+    if ka != kb:
+        return a == b
+    if ka == "str":
+        return va == vb
+    return math.isclose(va, vb, rel_tol=1e-6, abs_tol=1e-4)
+
+
+def values_equivalent(reference_value: str, generated_value: str) -> bool:
+    """True when two already-normalized field strings are physically equal.
+
+    Handles the two benign geometry differences left after normalization: perl vs Python
+    last-digit rounding (compared with a small tolerance) and equivalent unit spellings such
+    as ``-1.94*cm`` / ``-19.4*mm`` (compared after converting length/angle units to a common
+    scale). Non-numeric tokens (names, operators) still compare exactly.
+    """
+    reference_tokens = reference_value.replace(",", " ").split()
+    generated_tokens = generated_value.replace(",", " ").split()
+    if len(reference_tokens) != len(generated_tokens):
+        return False
+    return all(_tokens_equivalent(r, g) for r, g in zip(reference_tokens, generated_tokens))
+
+
 def semantic_differences(
     generated: dict[str, dict[str, str]],
     reference: dict[str, dict[str, str]],
@@ -470,10 +519,19 @@ def semantic_differences(
         for field in fields:
             reference_value = reference[name][field]
             generated_value = generated[name][field]
-            if reference_value != generated_value:
-                differences.append(
-                    f"{name}.{field}: reference <{reference_value}> generated <{generated_value}>"
-                )
+            if reference_value == generated_value:
+                continue
+            # Passive optical surfaces: gemc3 drops GEMC2's non-readout "id manual N" identifier
+            # on a mirror-sensitized volume, so an empty generated identifier there is not a
+            # difference (the mirror carries no readout channel).
+            if (field == "identifier" and generated_value == ""
+                    and generated[name].get("digitization", "").startswith("mirror:")):
+                continue
+            if values_equivalent(reference_value, generated_value):
+                continue
+            differences.append(
+                f"{name}.{field}: reference <{reference_value}> generated <{generated_value}>"
+            )
 
     return differences
 

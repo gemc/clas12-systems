@@ -4,6 +4,7 @@
 #include "ec/histos.h"
 #include "ft/histos.h"
 #include "ftof/histos.h"
+#include "htcc/histos.h"
 #include "ltcc/histos.h"
 #include "pcal/histos.h"
 
@@ -23,6 +24,9 @@ std::unique_ptr<Subsystem> make_subsystem(const std::string &name)
     if (name == "ftof") {
         return std::make_unique<FTOFSubsystem>();
     }
+    if (name == "htcc") {
+        return std::make_unique<HTCCSubsystem>();
+    }
     if (name == "ltcc") {
         return std::make_unique<LTCCSubsystem>();
     }
@@ -31,10 +35,10 @@ std::unique_ptr<Subsystem> make_subsystem(const std::string &name)
     }
 
     throw std::runtime_error("Unsupported subsystem '" + name +
-                             "'. Currently supported: dc, ec, ft, ftof, ltcc, pcal.");
+                             "'. Currently supported: dc, ec, ft, ftof, htcc, ltcc, pcal.");
 }
 
 std::vector<std::string> supported_subsystems()
 {
-    return {"dc", "ec", "ft", "ftof", "ltcc", "pcal"};
+    return {"dc", "ec", "ft", "ftof", "htcc", "ltcc", "pcal"};
 }

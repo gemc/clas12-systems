@@ -128,6 +128,7 @@ clas12_systems = [
     'ec',
     'ft',
     'ftof',
+    'htcc',
     'ltcc',
     'pcal',
 ]

@@ -76,6 +76,8 @@ jobs:
             n_events: 20000
           - system: ltcc
             n_events: 20000
+          - system: htcc
+            n_events: 20000
           - system: ft
             n_events: 20000
     steps:

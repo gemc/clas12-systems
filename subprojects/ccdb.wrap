@@ -1,11 +1,11 @@
 [wrap-git]
 directory = ccdb
 url = https://code.jlab.org/hallb/clas12/ccdb
-revision = v1.99.7
+revision = v1.99.8
 depth = 1
 clone-recursive = true
 method = cmake
-# Applied after clone so a clean fetch keeps the fix: when built against mariadb-connector-c
-# (see meson/meson.build connector selection), do not enforce TLS, so ccdb can connect to the
-# non-SSL clasdb.jlab.org server. See subprojects/packagefiles/ccdb_ssl_no_enforce.patch.
-diff_files = ccdb_ssl_no_enforce.patch, ccdb_system_sqlite.patch
+# v1.99.8 upstream already provides the two fixes GEMC previously carried as diff_files:
+#   - the USE_SYSTEM_SQLITE CMake option (meson/meson.build passes it, so ccdb shares GEMC's SQLite)
+#   - the mariadb-connector-c TLS-no-enforce fallback for the non-SSL clasdb.jlab.org server
+# so no patches are applied here anymore.

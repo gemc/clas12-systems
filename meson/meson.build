@@ -52,7 +52,7 @@ endforeach
 
 cmake_opts = cmake.subproject_options()
 cmake_opts.add_cmake_defines({
-    'CCDB_USE_SYSTEM_SQLITE' : true,
+    'USE_SYSTEM_SQLITE' : true,
     'BUILD_STATIC_LIBS' : true,
     'BUILD_SHARED_LIBS' : false,
     'ZLIB_USE_STATIC_LIBS' : false,
@@ -299,15 +299,18 @@ endif
 # CCDB is compiled and linked the same way as in clas12Tags (../clas12Tags/source/meson/meson.build): the
 # static ccdb_static archive (output name libccdb.a) is embedded into the plugins, not the shared libccdb.dylib.
 # The shared library is never installed and its CMake install-name points into the build prefix, so a dlopen of
-# the plugin cannot resolve it. Static linking is safe because CCDB_USE_SYSTEM_SQLITE makes ccdb use the same
+# the plugin cannot resolve it. Static linking is safe because USE_SYSTEM_SQLITE makes ccdb use the same
 # system SQLite as GEMC (no duplicate sqlite3 state).
 if external_deps.has_key('ccdb')
     ccdb_static_dep = external_deps['ccdb']
 else
     ccdb_proj = cmake.subproject('ccdb', options : cmake_opts)
     if ccdb_proj.target_list().contains('ccdb_sqlite_static')
-        error('The CCDB system-SQLite wrap patch is missing from the existing subproject checkout. ' +
-              'Run `meson subprojects purge --confirm ccdb`, then configure a clean build directory.')
+        error('CCDB fell back to its bundled SQLite (ccdb_sqlite_static target present). The ' +
+              'USE_SYSTEM_SQLITE CMake option did not take effect: confirm the ccdb checkout is a ' +
+              'revision that defines it (v1.99.8 does, upstream) and that the option name in cmake_opts ' +
+              'matches. If the checkout is stale, run `meson subprojects purge --confirm ccdb` and ' +
+              'reconfigure a clean build directory.')
     endif
     ccdb_static_dep = ccdb_proj.dependency('ccdb_static', include_type : 'system')
 endif

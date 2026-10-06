@@ -1,6 +1,7 @@
 name: Sanitize
 permissions:
   contents: read
+  packages: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -59,7 +60,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     container:
-      image: ${{ matrix.gemc_image }}
+      image: ${{ matrix.container_image }}
 
     steps:
       - name: Checkout
@@ -73,6 +74,9 @@ jobs:
           java-version: '21'
           distribution: 'zulu'
 
+      - name: Install coatjava dependencies
+        run: ./ci/install_coatjava_deps.sh
+
       - name: Install coatjava
         shell: bash
         env:
@@ -81,6 +85,8 @@ jobs:
           ./ci/setup_coatjava.sh
 
       - name: Sanitizer - ${{ matrix.sanitizer }}
+        env:
+          GEANT4_TAG: ${{ matrix.geant4_tag }}
         shell: bash
         run: |
           set -euo pipefail

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build CLAS12 systems inside published GEMC base images from ghcr.io/gemc/src.
-# Optional argument: address, thread, undefined, or leak to enable a sanitizer.
+# Build GEMC and CLAS12 systems from source inside a published g4install image.
+# GEANT4_TAG selects the module; by default use the first tag from tags_config.sh.
+# Optional argument: address, thread, undefined, leak, or profile.
 
 git config --global --add safe.directory '*'
 
@@ -30,10 +31,7 @@ set_java_home() {
 
 set_java_home
 
-export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
-. /usr/local/bin/docker-entrypoint.sh
-
-export PKG_CONFIG_PATH="${SIM_HOME}/gemc/dev/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+source "$(dirname "${BASH_SOURCE[0]}")/container_env.sh"
 
 jobs=$(nproc 2>/dev/null || echo 4)
 jobs=$(( jobs < 16 ? jobs : 16 ))
@@ -75,7 +73,7 @@ geo_log="$PWD/logs/geometry.log"
   echo " > geant4-config  : $(command -v geant4-config) $(geant4-config --version)"
   echo " > gemc           : $(command -v gemc || true)"
   echo " > meson          : $(command -v meson) $(meson --version)"
-  echo " > SIM_HOME       : ${SIM_HOME}"
+  echo " > SIM_HOME       : ${SIM_HOME:-}"
   echo " > JAVA_HOME      : ${JAVA_HOME}"
   echo " > PKG_CONFIG_PATH: ${PKG_CONFIG_PATH}"
   echo " > sanitizer      : ${sanitizer:-none}"

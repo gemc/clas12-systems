@@ -4,7 +4,7 @@
 # a single multi-arch manifest. Unlike Deploy (which covers every OS in
 # ci/tags_config.sh), this targets one OS only: the AlmaLinux entry from that same
 # configuration (currently almalinux 10). The CLAS12 systems image is layered on top
-# of the matching GEMC base image (ghcr.io/gemc/src:<gemc_tag>-almalinux-<ver>). The
+# of the matching Geant4 base image (ghcr.io/gemc/g4install:<geant4_tag>-almalinux-<ver>). The
 # published tag carries a `pr-<number>` suffix so each PR gets its own image. When the
 # PR is closed the image is deleted from GHCR.
 name: PR Docker Image
@@ -33,8 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.cfg.outputs.image }}
-      gemc_image: ${{ steps.cfg.outputs.gemc_image }}
+      container_image: ${{ steps.cfg.outputs.container_image }}
       gemc_tag: ${{ steps.cfg.outputs.gemc_tag }}
+      geant4_tag: ${{ steps.cfg.outputs.geant4_tag }}
       alma_tag: ${{ steps.cfg.outputs.alma_tag }}
       tag: ${{ steps.cfg.outputs.tag }}
     steps:
@@ -49,6 +50,7 @@ jobs:
           source ci/tags_config.sh
           image="$(build_image_ref)"
           gemc_tag="$(get_gemc_tags | awk '{print $1}')"
+          geant4_tag="$(get_geant4_tags | awk '{print $1}')"
 
           alma_tag=""
           for pair in "${OS_VERSIONS[@]}"; do
@@ -61,16 +63,17 @@ jobs:
             exit 1
           fi
 
-          gemc_image="$(build_gemc_image_ref "$gemc_tag" almalinux "$alma_tag")"
+          container_image="$(build_g4install_image_ref "$geant4_tag" almalinux "$alma_tag")"
           tag="${gemc_tag}-almalinux-${alma_tag}-pr-${PR}"
           {
             echo "image=$image"
-            echo "gemc_image=$gemc_image"
+            echo "container_image=$container_image"
             echo "gemc_tag=$gemc_tag"
+            echo "geant4_tag=$geant4_tag"
             echo "alma_tag=$alma_tag"
             echo "tag=$tag"
           } >> "$GITHUB_OUTPUT"
-          echo "Will build and push ${image}:${tag} (amd64 + arm64) on ${gemc_image}"
+          echo "Will build and push ${image}:${tag} (amd64 + arm64) on ${container_image}"
 
   # Per-arch build jobs. Each pushes an arch-suffixed tag (…-amd64 / …-arm64)
   # that the manifest job stitches into the bare PR tag.
@@ -128,7 +131,8 @@ jobs:
         shell: bash
         run: |
           python3 ci/dockerfile_creator.py \
-            --base-image "${{ needs.resolve.outputs.gemc_image }}" \
+            --base-image "${{ needs.resolve.outputs.container_image }}" \
+            --geant4-tag "${{ needs.resolve.outputs.geant4_tag }}" \
             > Dockerfile.generated
           cat Dockerfile.generated
 

@@ -1,6 +1,7 @@
 name: Doxygen
 permissions:
   contents: read
+  packages: read
   pull-requests: write
 
 env:
@@ -17,10 +18,13 @@ on:
 jobs:
   build-doxygen:
     runs-on: ubuntu-latest
-    container: jeffersonlab/base:fedora40
+    container:
+      image: ghcr.io/gemc/g4install:11.4.3-fedora-44
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Install documentation dependencies
+        run: dnf install -y doxygen graphviz
       - name: Run Doxygen
         run: |
           ./ci/doxygen.sh

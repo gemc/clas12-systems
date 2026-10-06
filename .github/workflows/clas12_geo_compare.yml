@@ -26,7 +26,7 @@ jobs:
     name: Compare ASCII Geometry
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gemc/src:dev-ubuntu-24.04
+      image: ghcr.io/gemc/g4install:11.4.3-ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -58,9 +58,7 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory '*'
 
-          export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
-          . /usr/local/bin/docker-entrypoint.sh
-          export PKG_CONFIG_PATH="${SIM_HOME}/gemc/dev/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+          source ci/container_env.sh
 
           meson setup build --wipe -Dbuildtype=release
 

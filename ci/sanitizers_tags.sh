@@ -28,17 +28,17 @@ get_sanitizers() {
 
 build_matrix_build() {
 
-	local arch_list gemc_list
+	local arch_list g4_list
 	arch_list="$(get_cpu_architectures)"
-	gemc_list="$(get_gemc_tags)"
+	g4_list="$(get_geant4_tags)"
 
-	local -a arch_tags gemc_tags
+	local -a arch_tags g4_tags
 	read -r -a arch_tags <<<"$arch_list"
-	read -r -a gemc_tags <<<"$gemc_list"
+	read -r -a g4_tags <<<"$g4_list"
 
 	local body="" sep="" pair os ver
 	for cpuv in "${arch_tags[@]}"; do
-		for gemcv in "${gemc_tags[@]}"; do
+		for g4v in "${g4_tags[@]}"; do
 			for pair in "${OS_VERSIONS[@]}"; do
 				os="${pair%%=*}"
 				ver="${pair#*=}"
@@ -56,17 +56,17 @@ build_matrix_build() {
 						continue
 					fi
 
-					local label gemc_image
+					local label container_image
 					label="${os}-${ver}-${cpuv}"
-					gemc_image="$(build_gemc_image_ref "$gemcv" "$os" "$ver")"
+					container_image="$(build_g4install_image_ref "$g4v" "$os" "$ver")"
 
 					body+="${sep}{"
 					body+="\"label\":\"${label}\","
-					body+="\"gemc_image\":\"${gemc_image}\","
+					body+="\"container_image\":\"${container_image}\","
 					body+="\"baseos\":\"${os}\","
 					body+="\"baseos_tag\":\"${ver}\","
 					body+="\"runner\":\"${runner}\","
-					body+="\"gemc_tag\":\"${gemcv}\","
+					body+="\"geant4_tag\":\"${g4v}\","
 					body+="\"arch\":\"${cpuv}\","
 					body+="\"sanitizer\":\"${sanitizer}\""
 					body+="}"

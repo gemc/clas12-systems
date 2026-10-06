@@ -160,6 +160,18 @@ if not geant4_core_dep.found() and gemc_pkgconfig_dir != ''
     )
 endif
 
+# Geant4-only images have no geant4_core.pc: GEMC generates it from geant4-config.
+# Bootstrap the source fallback here so the CLAS12 dependency check can use that dependency.
+gemc_bootstrapped = false
+if not geant4_core_dep.found() and get_option('use-gemc-location') == '' and not _gemc_prog.found()
+    installed_gemc_dep = dependency('gemc', required : false, allow_fallback : false)
+    if not installed_gemc_dep.found()
+        gemc_subproject = subproject('gemc')
+        geant4_core_dep = gemc_subproject.get_variable('geant4_core_dep').as_system()
+        gemc_bootstrapped = true
+    endif
+endif
+
 if not geant4_core_dep.found()
     error(
         'geant4_core not found via pkg-config. Install GEMC (it provides geant4_core.pc) and ensure ' +
@@ -169,8 +181,41 @@ endif
 
 geant4_core_deps = [geant4_core_dep]
 
-gemc_dep = dependency('gemc', required : false, include_type : 'system')
+# GEMC resolution mirrors the other dependencies (ccdb/hipo/clas12-cmag): an explicit installation
+# path wins, then an already-installed GEMC (pkg-config, then the gemc binary on PATH), and finally
+# the gemc subproject is built from source. Geant4 is never built — it must already be found above.
 gemc_prefix = ''
+gemc_is_subproject = false
+gemc_location = get_option('use-gemc-location')
+
+if gemc_location != ''
+    if not fs.is_absolute(gemc_location)
+        error('-Duse-gemc-location must be an absolute installation path.')
+    endif
+    gemc_location_pc = gemc_location / 'lib' / 'pkgconfig' / 'gemc.pc'
+    if not fs.is_file(gemc_location_pc)
+        error('Missing lib/pkgconfig/gemc.pc in the GEMC installation at ' + gemc_location)
+    endif
+    gemc_location_env = environment()
+    gemc_location_env.prepend('PKG_CONFIG_PATH', gemc_location / 'lib' / 'pkgconfig')
+    gemc_location_cflags = run_command(
+        pkgconfig_prog, '--cflags', 'gemc', env : gemc_location_env, check : true,
+    ).stdout().strip().split()
+    gemc_location_link = run_command(
+        pkgconfig_prog, '--libs', 'gemc', env : gemc_location_env, check : true,
+    ).stdout().strip().split()
+    gemc_prefix = gemc_location
+    gemc_dep = declare_dependency(
+        include_directories : [include_directories(gemc_location / 'include', is_system : true)],
+        compile_args        : gemc_location_cflags,
+        link_args           : gemc_location_link,
+    )
+    message('Using installed GEMC at ' + gemc_location)
+else
+    # allow_fallback : false so the gemc.wrap provide does not auto-build here; the subproject is
+    # reached only through the explicit fallback below, after the gemc-on-PATH check.
+    gemc_dep = dependency('gemc', required : false, allow_fallback : false, include_type : 'system')
+endif
 
 if not gemc_dep.found()
     # pkg-config didn't find gemc — try deriving the prefix from the installed binary.
@@ -206,8 +251,15 @@ if not gemc_dep.found()
     endif
 endif
 
-if not gemc_dep.found()
-    error('GEMC is required but was not found via pkg-config or PATH; install GEMC before configuring.')
+if gemc_bootstrapped or not gemc_dep.found()
+    # No installed GEMC (and no -Duse-gemc-location): build it from the gemc subproject. src's
+    # meson.build overrides the 'gemc' dependency, exposed here as its gemc_dep variable. Geant4 is
+    # not built by the subproject — it reuses the same Geant4 the checks above already required.
+    message('GEMC not found via pkg-config or PATH; building the gemc subproject from source.')
+    gemc_subproject = subproject('gemc')
+    gemc_dep = gemc_subproject.get_variable('gemc_dep').as_system()
+    gemc_exe = gemc_subproject.get_variable('gemc_exe')
+    gemc_is_subproject = true
 elif gemc_dep.type_name() == 'pkgconfig'
     gemc_prefix = gemc_dep.get_variable(pkgconfig : 'prefix')
     # Belt-and-suspenders for older installations where .pc Cflags had -I${includedir}/gemc.
@@ -218,12 +270,15 @@ elif gemc_dep.type_name() == 'pkgconfig'
     )
 endif
 
-gemc_plugin_dep = gemc_dep.partial_dependency(compile_args : true, includes : true)
-gemc_gdata_dep = declare_dependency()
-
-if gemc_prefix != ''
-    gemc_gdata_dep = declare_dependency(link_args : [gemc_prefix / 'lib' / 'libgdata.a'])
+# The gemc executable used by the sro integration test. When GEMC is built as a subproject it is the
+# built binary target (from the build tree); otherwise it is the installed binary under gemc_prefix.
+if not gemc_is_subproject
+    gemc_exe = find_program(gemc_prefix / 'bin' / 'gemc', required : true)
 endif
+
+# GEMC exports its symbols for loaded plugins, including gdata. Only propagate compilation settings;
+# linking its libraries into each plugin would duplicate host code and assume a particular library type.
+gemc_plugin_dep = gemc_dep.partial_dependency(compile_args : true, includes : true)
 
 if gemc_prefix != ''
     gemc_geant4_core_pc = gemc_prefix / 'lib' / 'pkgconfig' / 'geant4_core.pc'

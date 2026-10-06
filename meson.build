@@ -181,7 +181,7 @@ foreach plugin : clas12_plugins
         plugin['sources'],
         install             : plugin.get('install', true),
         install_dir         : plugin.get('install_dir', get_option('libdir')),
-        dependencies        : plugin.get('dependencies', []) + [gemc_gdata_dep],
+        dependencies        : plugin.get('dependencies', []),
         include_directories : plugin.get('include_directories', []) + [clas12_common_inc],
         link_with           : plugin.get('link_with', []),
         name_prefix         : '',

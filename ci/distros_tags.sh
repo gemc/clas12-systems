@@ -6,16 +6,21 @@ source "$script_dir/tags_config.sh"
 
 build_matrix_build() {
 
-	local gemc_list arch_list
-	gemc_list="$(get_gemc_tags)"
+	# All container workflows build CLAS12 systems FROM SCRATCH on g4install (Geant4-only) images: no GEMC
+	# is pre-installed, so the build compiles it from the gemc subproject. The matrix therefore
+	# iterates Geant4 image tags, and each entry carries geant4_tag so the workflow can
+	# `module load geant4/<tag>` before building.
+	local g4_list arch_list gemc_tag
+	gemc_tag="$(get_gemc_tags | awk '{print $1}')"
+	g4_list="$(get_geant4_tags)"
 	arch_list="$(get_cpu_architectures)"
 
-	local -a gemc_tags arch_tags
-	read -r -a gemc_tags <<< "$gemc_list"
+	local -a g4_tags arch_tags
+	read -r -a g4_tags <<< "$g4_list"
 	read -r -a arch_tags <<< "$arch_list"
 
 	local body="" sep="" pair os ver
-	for gemcv in "${gemc_tags[@]}"; do
+	for g4v in "${g4_tags[@]}"; do
 		for cpuv in "${arch_tags[@]}"; do
 			local runner
 			runner="$(get_runner "$cpuv")"
@@ -28,19 +33,20 @@ build_matrix_build() {
 					continue
 				fi
 
-				local label gemc_image platform suffix logs_dir
+				local label container_image platform suffix logs_dir
 				label="${os}-${ver}-${cpuv}"
-				gemc_image="$(build_gemc_image_ref "$gemcv" "$os" "$ver")"
+				container_image="$(build_g4install_image_ref "$g4v" "$os" "$ver")"
 				platform="linux/$cpuv"
 				suffix="-$cpuv"
 				logs_dir="logs-${label}"
 
 				body+="${sep}{"
 				body+="\"label\":\"${label}\","
-				body+="\"gemc_image\":\"${gemc_image}\","
+				body+="\"container_image\":\"${container_image}\","
 				body+="\"image\":\"${os}\","
 				body+="\"image_tag\":\"${ver}\","
-				body+="\"gemc_tag\":\"${gemcv}\","
+				body+="\"geant4_tag\":\"${g4v}\","
+				body+="\"gemc_tag\":\"${gemc_tag}\","
 				body+="\"arch\":\"${cpuv}\","
 				body+="\"platform\":\"${platform}\","
 				body+="\"runner\":\"${runner}\","

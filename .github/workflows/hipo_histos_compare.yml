@@ -2,7 +2,7 @@
 # per supported system, using hipo-histos.
 #
 # For each system the job:
-#   1. builds + installs this repo (ci/build.sh also generates build/clas12.db and hipo-histos),
+#   1. builds + installs this repo (ci/build.sh also generates experiments/gemc.sqlite and hipo-histos),
 #   2. runs GEMC3 twice for n_events with the system's committed yaml: once with field and once with
 #      -no_field=all (gun comes from the yaml, unchanged),
 #   3. downloads the latest clas12Tags reference HIPOs — both <system>_reference.hipo (field) and
@@ -61,7 +61,7 @@ jobs:
     name: Compare ${{ matrix.system }} (${{ matrix.n_events }} events)
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gemc/src:dev-ubuntu-24.04
+      image: ghcr.io/gemc/g4install:11.4.3-ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -120,8 +120,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export DOCKER_ENTRYPOINT_SOURCE_ONLY=1
-          . /usr/local/bin/docker-entrypoint.sh
+          source ci/container_env.sh
           export PKG_CONFIG_PATH="$PWD/install/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
           # GEMC_PLUGIN_PATH must point at the installed plugin prefix (the libdir holding
@@ -162,7 +161,7 @@ jobs:
             shift
             gemc "${{ matrix.system }}.yaml" \
               -n="${{ matrix.n_events }}" \
-              -sql="$GITHUB_WORKSPACE/build/clas12.db" \
+              -sql="$GITHUB_WORKSPACE/experiments/gemc.sqlite" \
               "$@"
             # The hipo gstreamer writes <filename>.hipo (this system's yaml uses <system>_t0).
             # If the hipo is missing, list what was produced — a duplicate gstreamer output
@@ -307,7 +306,7 @@ jobs:
             echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "system: ${{ matrix.system }}"
             echo "n_events: ${{ matrix.n_events }}"
-            echo "image: ghcr.io/gemc/src:dev-ubuntu-24.04"
+            echo "image: ghcr.io/gemc/g4install:11.4.3-ubuntu-24.04"
             echo "reference (field): $field_reference"
             echo "reference (nofield): $nofield_reference"
           } > "${{ matrix.system }}_gemc3.txt"

@@ -4,6 +4,12 @@ This directory contains the CI, deployment, release, and maintenance workflows f
 The [GEMC workflow guide][src-workflows] is the authoritative description of the complete
 `pygemc -> src -> clas12-systems` dependency chain.
 
+Upcoming in the next release, all container workflows use `ghcr.io/gemc/g4install` base images. Builds compile
+GEMC from the `gemc` subproject and install it alongside the CLAS12 plugins. The shared container environment
+loads the selected Geant4 module and exposes the installed GEMC to comparison and profiling jobs. Profiling
+uses the Geant4 image with debug symbols and builds GEMC with debug symbols too. Published CLAS12 image tags
+retain their `dev-<os>-<version>` naming.
+
 ## Deployment paths
 
 A change made directly in this repository follows this path:
@@ -38,11 +44,11 @@ deployment-authorized and therefore rebuilds the CLAS12 images.
 
 - [`test.yml`](test.yml) — **Test**
   - Trigger: pull requests, merge queue runs, pushes to `main`, tag pushes, and `workflow_call`.
-  - Effect: builds and tests the CLAS12 systems inside the supported GEMC image matrix.
+  - Effect: builds and tests GEMC and the CLAS12 systems inside the supported Geant4 image matrix.
   - Downstream: `Deploy` only for a successful push to `main`.
 - [`test_after_src.yml`](test_after_src.yml) — **Test after gemc/src deploy**
   - Trigger: API or manual `workflow_dispatch`; the upstream dispatcher selects `main`.
-  - Effect: calls the reusable jobs in `test.yml` against freshly deployed GEMC images.
+  - Effect: calls the reusable jobs in `test.yml` to rebuild GEMC from source after its upstream deployment.
   - Downstream: `Deploy` after success.
 - [`deploy.yml`](deploy.yml) — **Deploy**
   - Trigger: completion of either approved Test workflow on `main`.
@@ -50,7 +56,7 @@ deployment-authorized and therefore rebuilds the CLAS12 images.
   - Downstream: `Binary Tarballs` after completion.
 - [`binary_tarballs.yml`](binary_tarballs.yml) — **Binary Tarballs**
   - Trigger: completion of `Deploy`.
-  - Effect: after a successful same-repository deployment, smoke-tests the published image matrix.
+  - Effect: after a successful same-repository deployment, rebuilds and smoke-tests GEMC on the Geant4 matrix.
 - [`sanitize.yml`](sanitize.yml) — **Sanitize**
   - Trigger: pull requests plus pushes to `main` and `v*` tags.
   - Effect: runs the sanitizer matrix and uploads sanitizer logs.

@@ -21,10 +21,12 @@ option(
 )
 
 option(
-    'gemc',
-    type : 'feature',
-    value : 'auto',
-    description : 'Resolve an installed GEMC dependency for CLAS12 plugins when available.',
+    'use-gemc-location',
+    type : 'string',
+    value : '',
+    description : 'Use GEMC installed at this absolute path instead of pkg-config/PATH discovery or '
+                + 'building the gemc subproject. When empty (default), an installed GEMC is used if '
+                + 'found, otherwise the gemc subproject is built from source (Geant4 is never built).',
 )
 
 option(

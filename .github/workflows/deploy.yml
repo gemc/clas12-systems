@@ -127,7 +127,8 @@ jobs:
         shell: bash
         run: |
           python3 ci/dockerfile_creator.py \
-            --base-image "${{ matrix.gemc_image }}" \
+            --base-image "${{ matrix.container_image }}" \
+            --geant4-tag "${{ matrix.geant4_tag }}" \
             > Dockerfile.generated
           cat Dockerfile.generated
 

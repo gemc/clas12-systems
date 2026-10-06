@@ -110,10 +110,17 @@ fi
 repo_dir=${0:A:h}
 experiments_dir=$repo_dir/experiments
 geometry_dir=$repo_dir/geometry_src
-python_command=${PYTHON:-python3}
+
+# Interpreter selection: use the build-tree venv created by the pygemc subproject. That venv has
+# pygemc installed and registers geometry_src via clas12_systems.pth, so the detector scripts import
+# pygemc and clas12_common without PYTHONPATH. A plain python3 from PATH usually lacks pygemc (the
+# common "No module named 'pygemc'" cause), so there is deliberately no python3 fallback: $PYTHON is
+# the only override, and a missing venv fails loudly below rather than running the wrong interpreter.
+python_command=${PYTHON:-$repo_dir/build/subprojects/pygemc/python_env/bin/python3}
 
 if ! command -v "$python_command" >/dev/null 2>&1; then
 	print -u2 "Error: Python command not found: $python_command"
+	print -u2 "Configure and build first (meson setup build && meson compile -C build), or set \$PYTHON."
 	exit 1
 fi
 

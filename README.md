@@ -82,6 +82,14 @@ This repository owns CLAS12-specific inputs to that runtime:
 
 The [`gemc/pygemc`](https://github.com/gemc/pygemc) repository defines the Python API.
 
+> **Build from scratch — no pre-installed GEMC required.** As of the upcoming release, CLAS12 systems can be
+> built and installed on a plain Geant4 environment (for example a `ghcr.io/gemc/g4install` image) with **no
+> GEMC present**: when no installed GEMC is found, the build compiles it automatically from the `gemc`
+> subproject and installs it into the same prefix. GEMC is resolved in this order — an explicit
+> `-Duse-gemc-location=<dir>`, then an already-installed GEMC (pkg-config or the `gemc` binary on `PATH`), and
+> finally the from-source subproject. **Geant4 is never built**: it must already be available, or configuration
+> fails. All container CI workflows use this path on g4install images across the supported distros.
+
 <br/>
 
 ## Geometry Workflow
@@ -210,19 +218,37 @@ Do not remove an existing coatjava installation unless the reset flag is explici
 
 This repository is built with Meson and uses the GEMC and Geant4 dependencies configured under `meson/`.
 
+Only **Geant4** must be present beforehand (load its module / `geant4-config` on `PATH`). GEMC does **not**
+need to be pre-installed: if it is not found, it is compiled from the `gemc` subproject and installed into the
+same `--prefix`. This is what lets CLAS12 systems be installed from scratch on a bare Geant4 environment (see
+the callout in the [GEMC](#gemc) section).
+
 Configure, build, and test:
 
 ```shell
 meson setup build --prefix="$PWD/install"
 meson compile -C build
-meson test -C build --print-errorlogs
+meson test -C build --suite clas12 --print-errorlogs
 ```
+
+**CLAS12 tests vs. GEMC core tests.** This repository's own tests all belong to the `clas12` suite (geometry
+generation, the GEMC2 ASCII comparison, CCDB connectivity, and the SRO checks), which is why the command above
+and CI (`ci/build.sh`) run `--suite clas12`. The GEMC **core** tests belong to `gemc/src` and are not part of
+this repository: when GEMC is compiled here as the `gemc` subproject it registers **none** of its own tests —
+they exercise the uninstalled build-tree GEMC and are the responsibility of `gemc/src`'s own CI. A bare
+`meson test -C build` here therefore runs only the `clas12` suite; the authoritative place to run the GEMC core
+suite is the [`gemc/src`](https://github.com/gemc/src) repository itself. (The `-Dinclude-subproject-tests=true`
+option governs the other bundled subprojects — CCDB, HIPO, clas12-cmag — not GEMC.)
+
+To reuse an existing GEMC install instead of building it, pass `-Duse-gemc-location=<dir>` (or put its `gemc`
+binary on `PATH`).
 
 Use these independent options to reuse existing library installations and magnetic field maps. The three
 library options and configured field-plugin default are upcoming in the next release.
 
 | Meson option | Path to supply |
 | --- | --- |
+| `-Duse-gemc-location=<dir>` | GEMC installation prefix |
 | `-Duse-ccdb-location=<dir>` | CCDB installation prefix |
 | `-Duse-hipo-location=<dir>` | HIPO installation prefix |
 | `-Duse-clas12-cmag-location=<dir>` | clas12-cmag installation prefix |
@@ -250,6 +276,12 @@ With `-Duse-fields-location=<dir>`, no maps are fetched or installed, and the fi
 by default. An explicit field `dir` parameter still takes precedence. When the option is empty, maps come from
 the `magfield` git-lfs subproject and are installed under `<prefix>/fields`; the plugin locates that directory
 relative to its own installed location. Fetching the maps requires git-lfs.
+
+GEMC itself is resolved in the same style. `-Duse-gemc-location=<dir>` uses the GEMC installed at that absolute
+prefix (expecting `lib/pkgconfig/gemc.pc`). When the option is empty, an already-installed GEMC is used if found
+through pkg-config or the `gemc` binary on `PATH`; otherwise the `gemc` subproject is built from source. Geant4
+is never built: it must already be available (load the Geant4 module before configuring), and configuration
+fails if it is missing.
 
 Upcoming in the next release: bundled CCDB uses system SQLite through `ccdb_system_sqlite.patch`, avoiding its
 private SQLite amalgamation. Existing unpatched CCDB subproject checkouts must be refreshed before rebuilding:
@@ -485,7 +517,8 @@ Known DC expectations:
 
 ## CI And Releases
 
-CI builds this repository against GEMC base images published by [`gemc/src`](https://github.com/gemc/src).
+Upcoming in the next release, all container workflows build GEMC and CLAS12 systems from source on Geant4
+base images published by [`gemc/g4install`](https://github.com/gemc/g4install).
 The [workflow guide](.github/workflows/README.md) documents triggers, deployment authorization,
 cross-repository contracts, permissions, retries, and expected skipped runs.
 
@@ -493,12 +526,12 @@ Relevant automation:
 
 | Workflow              | Purpose                                                                             |
 |-----------------------|-------------------------------------------------------------------------------------|
-| `deploy.yml`          | Build and test CLAS12 systems in GEMC base images, then publish the images          |
+| `deploy.yml`          | Build GEMC and CLAS12 systems in Geant4 base images, then publish the images         |
 | `pr-docker-image.yml` | Build a per-PR preview image so reviewers can test the branch without a local build |
 | `sanitize.yml`        | Run CLAS12-system sanitizer builds without sanitizing third-party subprojects       |
 | `codeql.yml`          | Static analysis                                                                     |
 | `doxygen.yml`         | Documentation generation                                                            |
-| `binary_tarballs.yml` | Package installed CLAS12 systems prefixes                                           |
+| `binary_tarballs.yml` | Rebuild and smoke-test GEMC after deployment                                        |
 | `dev_release.yml`     | Development release automation                                                      |
 
 Deploy images use the pattern:
@@ -510,7 +543,7 @@ ghcr.io/gemc/clas12-systems:<gemc-tag>-<os>-<version>[-<arch>]
 The base images come from:
 
 ```text
-ghcr.io/gemc/src
+ghcr.io/gemc/g4install
 ```
 
 Each pull request additionally publishes a ready-to-run, multi-arch preview image built from the branch

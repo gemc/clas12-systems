@@ -1,4 +1,6 @@
-# Build and test CLAS12 systems directly inside published ghcr.io/gemc/src images.
+# Build and test CLAS12 systems FROM SCRATCH inside published ghcr.io/gemc/g4install images: these
+# ship Geant4 only (no GEMC), so GEMC is compiled from source via the gemc subproject. This proves
+# CLAS12 systems can be installed without a pre-existing GEMC, consistently with the other workflows.
 name: Test
 
 run-name: ${{ github.event.head_commit.message || github.event.pull_request.title || github.workflow }}
@@ -48,7 +50,7 @@ jobs:
     needs: [ discover ]
     runs-on: ${{ matrix.runner }}
     container:
-      image: ${{ matrix.gemc_image }}
+      image: ${{ matrix.container_image }}
     timeout-minutes: 180
     strategy:
       fail-fast: false
@@ -68,6 +70,8 @@ jobs:
         run: ./ci/setup_coatjava.sh
 
       - name: Build and test
+        env:
+          GEANT4_TAG: ${{ matrix.geant4_tag }}
         run: ./ci/build.sh
 
   final:

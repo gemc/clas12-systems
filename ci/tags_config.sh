@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 
-# Shared CI configuration: which GEMC base images to build CLAS12 systems against.
+# Shared CI configuration: which base images to build CLAS12 systems against.
 # Keep versions here so they stay in sync across all ci/ scripts.
-
-get_gemc_tags()         { echo "dev"; }         # space-separated list
+#
+# All container builds use g4install (Geant4 only) and compile GEMC from the gemc subproject.
+# GEMC tags name the published CLAS12 images; Geant4 tags select their base images.
+get_gemc_tags()         { echo "dev"; }         # space-separated published CLAS12 image tags
+get_geant4_tags()       { echo "11.4.3"; }      # space-separated g4install image tags
 get_cpu_architectures() { echo "arm64 amd64"; } # space-separated list
 
 get_runner() {
@@ -29,11 +32,10 @@ OS_VERSIONS=(
   "archlinux=latest"
 )
 
-# Returns the multi-arch manifest tag for a GEMC image.
-# The manifest resolves to the correct arch based on the runner.
-build_gemc_image_ref() {
-	local gemc_tag="$1" os="$2" os_ver="$3"
-	printf 'ghcr.io/gemc/src:%s-%s-%s' "$gemc_tag" "$os" "$os_ver"
+# Returns the multi-arch manifest tag for a Geant4-only base image.
+build_g4install_image_ref() {
+	local g4_tag="$1" os="$2" os_ver="$3"
+	printf 'ghcr.io/gemc/g4install:%s-%s-%s' "$g4_tag" "$os" "$os_ver"
 }
 
 build_image_ref() {

@@ -1,0 +1,11 @@
+[wrap-git]
+directory = gemc
+url = https://github.com/gemc/src.git
+revision = main
+depth = 1
+
+# src/meson.build calls meson.override_dependency('gemc', gemc_dep), so when no installed GEMC is
+# found (and -Duse-gemc-location is empty), the build falls back to compiling GEMC from this
+# subproject. Geant4 is never fetched here: the GEMC build requires an already-installed Geant4.
+[provide]
+dependency_names = gemc

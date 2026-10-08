@@ -77,9 +77,17 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Releases may retain builds for older Geant4 or compiler versions.
+          # Select the first configured Geant4 version and this runner's build tag.
+          source ci/tags_config.sh
+          read -r -a geant4_versions <<< "$(get_geant4_tags)"
+          g4ver="${geant4_versions[0]}"
+          mac_major="$(sw_vers -productVersion | cut -d. -f1)"
+          clang_major="$(clang --version | sed -nE 's/.*clang version ([0-9]+).*/\1/p' | head -1)"
+          pattern="geant4-${g4ver}-macosx${mac_major}-clang${clang_major}-arm64.tar.gz"
+
           g4dest="${RUNNER_TEMP}/geant4-download"
           mkdir -p "${g4dest}"
-          pattern='geant4-*-macosx*-arm64.tar.gz'
           if ! gh release download "${GEANT4_TARBALL_TAG}" \
             --repo "${GEANT4_TARBALL_REPO}" --pattern "${pattern}" --dir "${g4dest}"; then
             echo "::error::Cannot download ${pattern} from ${GEANT4_TARBALL_REPO}@${GEANT4_TARBALL_TAG}."
@@ -88,13 +96,8 @@ jobs:
               --json assets --jq '.assets[].name' || true
             exit 1
           fi
-          shopt -s nullglob
-          tarballs=("${g4dest}"/geant4-*-macosx*-arm64.tar.gz)
-          if (( ${#tarballs[@]} != 1 )); then
-            echo "::error::Expected exactly one macOS arm64 Geant4 tarball; found ${#tarballs[@]}."
-            exit 1
-          fi
-          echo "GEANT4_TARBALL=${tarballs[0]}" >> "$GITHUB_ENV"
+          test -f "${g4dest}/${pattern}"
+          echo "GEANT4_TARBALL=${g4dest}/${pattern}" >> "$GITHUB_ENV"
           ls -l "${g4dest}"
 
       - name: Unpack Geant4 and install its data

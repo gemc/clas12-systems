@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-SINCE="${DEVMD_SINCE:-2026-06-17}" # Manually set the start date for commits
+SINCE="${DEVMD_SINCE:-2026-10-8}" # Manually set the start date for commits
 
 echo "[devmd] start"
 

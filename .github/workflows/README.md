@@ -89,7 +89,10 @@ deployment-authorized and therefore rebuilds the CLAS12 images.
   - Effect: builds and tests against the GEMC and Geant4 macOS tarballs, then updates the selected release.
 - [`dev_release.yml`](dev_release.yml) — **Nightly Dev Release**
   - Trigger: daily at 01:44 UTC or manual dispatch.
-  - Effect: moves the `dev` tag and updates the development prerelease.
+  - Effect: `gemc/DRelease@v1` moves the `dev` tag and updates the development prerelease,
+    preserving its assets. Notes include commits after the latest version tag's date.
+  - Upcoming in the next release: DRelease replaces duplicated release steps and the fixed start date.
+    Publication is serialized, and notes are generated in the runner's temporary directory.
 - [`doxygen.yml`](doxygen.yml) — **Doxygen**
   - Trigger: non-Markdown pushes to any branch or manual dispatch.
   - Effect: builds documentation and deploys GitHub Pages from `main`.

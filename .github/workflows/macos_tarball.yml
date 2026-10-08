@@ -158,6 +158,11 @@ jobs:
           # rootcling/root-config are found and the hipo-cpp ROOT tools link.
           source "$(brew --prefix root)/bin/thisroot.sh"
 
+          # The installed GEMC used by SRO tests may link shared CLHEP. dyld uses
+          # DYLD_LIBRARY_PATH; geant4.env only exports LD_LIBRARY_PATH.
+          g4_runtime_libs="${G4INSTALL}/lib:${CLHEP_BASE_DIR}/lib:${XERCESCROOT}/lib"
+          export DYLD_LIBRARY_PATH="${g4_runtime_libs}:${DYLD_LIBRARY_PATH:-}"
+
           echo " > geant4-config: $(command -v geant4-config) ($(geant4-config --version))"
           echo " > clhep       : ${CLHEP_BASE_DIR}"
           echo " > root-config : $(command -v root-config) ($(root-config --version))"

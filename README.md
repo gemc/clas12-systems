@@ -228,17 +228,25 @@ Configure, build, and test:
 ```shell
 meson setup build --prefix="$PWD/install"
 meson compile -C build
+meson install -C build
 meson test -C build --suite clas12 --print-errorlogs
 ```
 
 **CLAS12 tests vs. GEMC core tests.** This repository's own tests all belong to the `clas12` suite (geometry
-generation, the GEMC2 ASCII comparison, CCDB connectivity, and the SRO checks), which is why the command above
-and CI (`ci/build.sh`) run `--suite clas12`. The GEMC **core** tests belong to `gemc/src` and are not part of
+generation, detector construction in GEMC, CCDB connectivity, and the SRO checks), which is why the command
+above and CI (`ci/build.sh`) run `--suite clas12`. The GEMC **core** tests belong to `gemc/src` and are not part of
 this repository: when GEMC is compiled here as the `gemc` subproject it registers **none** of its own tests —
 they exercise the uninstalled build-tree GEMC and are the responsibility of `gemc/src`'s own CI. A bare
 `meson test -C build` here therefore runs only the `clas12` suite; the authoritative place to run the GEMC core
 suite is the [`gemc/src`](https://github.com/gemc/src) repository itself. (The `-Dinclude-subproject-tests=true`
 option governs the other bundled subprojects — CCDB, HIPO, clas12-cmag — not GEMC.)
+
+Upcoming in the next release: each detector has a `gemc_<system>` smoke test in the `clas12` and `gemc`
+suites. After geometry generation, it starts the installed GEMC, constructs the native and CAD geometry,
+and loads the detector plugins with zero events and no magnetic field in an isolated temporary directory.
+Once the geometry tests have populated `build/clas12.db`, rerun only construction with
+`meson test -C build --suite gemc --print-errorlogs`. When GEMC is built as a subproject, install it before
+testing so the executable has its required runtime directory layout.
 
 To reuse an existing GEMC install instead of building it, pass `-Duse-gemc-location=<dir>` (or put its `gemc`
 binary on `PATH`).

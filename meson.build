@@ -191,6 +191,36 @@ foreach plugin : clas12_plugins
     clas12_plugin_targets += plugin_target
 endforeach
 
+# GEMC needs its installed lib/ layout, even when compiled as a subproject. CI installs before testing;
+# local subproject builds must also run `meson install -C build` before tests that launch GEMC.
+gemc_test_depends = clas12_plugin_targets
+if gemc_is_subproject
+    gemc_test_path = get_option('prefix') / 'bin' / 'gemc'
+    gemc_test_depends += gemc_exe
+else
+    gemc_test_path = gemc_exe.full_path()
+endif
+
+foreach sys : clas12_systems
+    test(
+        'gemc_' + sys,
+        python_exe,
+        args : [
+            files('scripts/check_geometry_gemc.py'),
+            gemc_test_path,
+            meson.project_build_root(),
+            meson.project_source_root() / 'geometry_src' / sys,
+            sql_db,
+        ],
+        depends : gemc_test_depends,
+        env : test_env,
+        suite : ['clas12', 'gemc'],
+        # The serialized geometry tests have priority 10 and populate sql_db before these runs.
+        priority : 0,
+        timeout : geometry_test_timeout,
+    )
+endforeach
+
 # Offline JLAB encoding and FT-Cal translation-table integration tests.
 subdir('geometry_src/sro')
 

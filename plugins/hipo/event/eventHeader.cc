@@ -24,8 +24,6 @@ bool GStreamerHIPOFactory::publishEventHeaderImpl(
 
     outEvent->addStructure(runConfigBank);
 
-    log->info(2, FUNCTION_NAME,
-              "RUN::config: run=", runNumber,
-              " event=", gevent_header->getG4LocalEvn());
+    log->info(2, "%1RUN::config: run=%2 event=%3", FUNCTION_NAME, runNumber, gevent_header->getG4LocalEvn());
     return true;
 }

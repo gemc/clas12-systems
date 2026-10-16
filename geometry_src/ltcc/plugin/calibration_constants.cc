@@ -20,7 +20,7 @@ bool LTCC_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     ltccc = LTCCConstants{};
 
-    log->info(1, " Loading LTCC constants for run ", runno, ", variation ", variation, " from ", conn);
+    log->info(1, " Loading LTCC constants for run %1, variation %2 from %3", runno, variation, conn);
 
     auto calib = clas12ccdb::connect(conn, log);
     if (!calib) return false;
@@ -58,6 +58,6 @@ bool LTCC_digitization::loadConstantsImpl(int runno, std::string const& variatio
         ltccc.tdcConv[sector][side][segment] = row[3];
     }
 
-    log->info(1, " LTCC constants loaded for run ", runno, ", variation ", variation);
+    log->info(1, " LTCC constants loaded for run %1, variation %2", runno, variation);
     return true;
 }

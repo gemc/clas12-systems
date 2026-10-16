@@ -1,0 +1,22 @@
+experiment: clas12
+runno: 11
+nthreads: 1
+check_overlaps: 2
+
+gsystem:
+  - name: beamline
+    factory: sqlite
+  - name: beamline_cad
+    factory: sqlite
+
+phys_list: FTFP_BERT
+
+g4camera:
+  theta: 90*deg
+  phi: 0*deg
+
+gparticle:
+  - name: geantino
+    p: 1*GeV
+    theta: 0*deg
+    phi: 0*deg

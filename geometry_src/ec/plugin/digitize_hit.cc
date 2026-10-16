@@ -227,19 +227,19 @@ std::unique_ptr<GDigitizedData> ECAL_digitization::digitizeHitImpl(GHit* ghit, s
             case 5:
                 break;
             default:
-                log->warning("Unknown ECAL status ", ecc.status[secI][layerI][stripI], " for sector ", sector,
-                             ", layer ", layer, ", strip ", strip);
+                log->warning(
+                    "Unknown ECAL status %1 for sector %2, layer %3, strip %4",
+                    ecc.status[secI][layerI][stripI], sector, layer, strip);
         }
     }
 
     if (dbg) {
-        log->info(0, "ECAL_DEBUG_LOWSTRIP s/l/strip ", sector, "/", layer, "/", strip,
-                  " view ", view, " pDx2(mm) ", pDx2, " nsteps ", nsteps,
-                  " xlocal[min,max] ", dbg_xl_min, ",", dbg_xl_max,
-                  " latt[min,max] ", dbg_latt_min, ",", dbg_latt_max,
-                  " att_last ", dbg_att_last, " A ", A, " B ", B,
-                  " Etota(MeV) ", Etota, " gain ", G, " ADC ", ADC,
-                  " threshold evaluated post-digitization");
+        log->info(
+            0,
+            "ECAL_DEBUG_LOWSTRIP s/l/strip %1/%2/%3 view %4 pDx2(mm) %5 nsteps %6 xlocal[min,max] %7,%8 "
+            "latt[min,max] %9,%10 att_last %11 A %12 B %13 Etota(MeV) %14 gain %15 ADC %16 threshold "
+            "evaluated post-digitization", sector, layer, strip, view, pDx2, nsteps, dbg_xl_min, dbg_xl_max,
+            dbg_latt_min, dbg_latt_max, dbg_att_last, A, B, Etota, G, ADC);
     }
 
     const double fadc_time = convert_to_precision(ftime_in_ns);

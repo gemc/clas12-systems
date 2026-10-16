@@ -16,7 +16,6 @@ bool GStreamerHIPOFactory::publishEventTrueInfoDataImpl(
         trueInfoBuffer.push_back(std::move(row));
     }
 
-    log->info(2, FUNCTION_NAME,
-              detectorName, ": buffered ", trueInfoData.size(), " MC::True rows");
+    log->info(2, "%1%2: buffered %3 MC::True rows", FUNCTION_NAME, detectorName, trueInfoData.size());
     return true;
 }

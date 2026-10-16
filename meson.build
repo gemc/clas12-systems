@@ -1,4 +1,4 @@
-# Notice: if both static and dynamic libraries are present, the dynamic library will be used.
+# Prefer static dependencies, including when GEMC is built as a subproject.
 # Force suffix lib instead of variants like lib64.
 project(
     'clas12-gemc-systems',
@@ -7,6 +7,7 @@ project(
         'cpp_std=c++20',
         'default_library=static',
         'default_both_libraries=static',
+        'prefer_static=true',
         'libdir=lib',
     ],
     version : run_command('ci/clas12_plugins_version.sh', check : true).stdout().strip(),
@@ -99,6 +100,16 @@ pygemc_sub = subproject('pygemc')
 venv_bin   = pygemc_sub.get_variable('venv_bin')
 python_exe = import('python').find_installation(venv_bin / 'python3')
 
+# GEMC registers its Python installer when built from source. With an installed GEMC, install the
+# same pygemc environment here so geometry tools are updated alongside the CLAS12 plugins.
+if not gemc_is_subproject
+    meson.add_install_script(
+        python_exe,
+        files('ci/install_python_env.py'),
+        pygemc_sub.get_variable('pygemc_source_dir'),
+    )
+endif
+
 # Register geometry_src/ in the venv via a .pth file so every detector script
 # can import clas12_common without per-detector sys.path boilerplate.
 # Python processes .pth files at interpreter startup for any use of this venv.
@@ -124,6 +135,7 @@ sql_db = meson.project_build_root() / 'clas12.db'
 # Add a new detector name to the list when its directory is ready.
 # ---------------------------------------------------------------------------
 clas12_systems = [
+    'beamline',
     'dc',
     'ec',
     'ft',
@@ -166,6 +178,13 @@ endforeach
 subdir('plugins/hipo')
 subdir('plugins/field')
 subdir('hipo-histos')
+
+# Keep plugin catalogs in their own domain alongside the framework catalogs at installation.
+install_subdir('translations',
+               install_dir: get_option('datadir') / 'gemc/translations/clas12',
+               strip_directory: true,
+               exclude_files: ['catalog.yaml', 'README.md'],
+               install_tag: 'translations')
 
 # ---------------------------------------------------------------------------
 # Build and install all registered shared-library plugins

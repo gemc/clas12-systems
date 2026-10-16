@@ -16,7 +16,7 @@ bool HTCC_digitization::loadTTImpl(int runno, std::string const& variation) {
     std::string conn = env ? env : "mysql://clas12reader@clasdb.jlab.org/clas12";
     char db[256];
 
-    log->info(1, " Loading HTCC translation table for run ", runno, ", variation ", variation, " from ", conn);
+    log->info(1, " Loading HTCC translation table for run %1, variation %2 from %3", runno, variation, conn);
 
     std::unique_ptr<ccdb::Calibration> calib(ccdb::CalibrationGenerator::CreateCalibration(conn));
     std::vector<std::vector<double>> data;
@@ -45,6 +45,6 @@ bool HTCC_digitization::loadTTImpl(int runno, std::string const& variation) {
 
     translationTable = tt;
 
-    log->info(1, " HTCC translation table loaded: ", data.size(), " entries");
+    log->info(1, " HTCC translation table loaded: %1 entries", data.size());
     return true;
 }

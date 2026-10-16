@@ -1,0 +1,19 @@
+experiment: clas12
+runno: 10000204
+nthreads: 1
+check_overlaps: 2
+
+gsystem:
+  - name: beamline
+    factory: sqlite
+  - name: beamline_transverse_cad
+    factory: sqlite
+    # Run 10000204: noWedges; 10000206: forwardWedges; 10000207: midpointWedges.
+
+phys_list: FTFP_BERT
+
+gparticle:
+  - name: geantino
+    p: 1*GeV
+    theta: 0*deg
+    phi: 0*deg

@@ -75,9 +75,10 @@ void GField_Clas12BinFactory::load_field_definitions(GFieldDefinition gfd) {
 	const std::string torus_name    = param_string("torus", "");
 
 	if (solenoid_name.empty() && torus_name.empty()) {
-		log->error(gfields::ERR_WRONG_FIELD_NOT_FOUND,
-		           "GField_Clas12BinFactory: neither 'solenoid' nor 'torus' map specified for field <",
-		           gfield_definitions.name, ">. Exiting.");
+		log->error(
+			gfields::ERR_WRONG_FIELD_NOT_FOUND,
+			"GField_Clas12BinFactory: neither 'solenoid' nor 'torus' map specified for field <%1>. Exiting.",
+			gfield_definitions.name);
 	}
 
 	// Interpolation: linear (default) interpolates the grid; "none" uses nearest neighbour.
@@ -91,10 +92,11 @@ void GField_Clas12BinFactory::load_field_definitions(GFieldDefinition gfd) {
 	if (!solenoid_name.empty()) {
 		const std::string path = field_dir + "/" + solenoid_name + ".dat";
 		if (!std::ifstream(path).good()) {
-			log->error(gfields::ERR_WRONG_FIELD_NOT_FOUND,
-			           "GField_Clas12BinFactory: solenoid map not found: ", path);
+			log->error(
+				gfields::ERR_WRONG_FIELD_NOT_FOUND, "GField_Clas12BinFactory: solenoid map not found: %1",
+				path);
 		}
-		log->info(1, "Loading CLAS12 solenoid map: ", path);
+		log->info(1, "Loading CLAS12 solenoid map: %1", path);
 		solenoidPtr = initializeSolenoid(path.c_str());
 		solenoidPtr->scale  = param_g4number("solenoid_scale", "1");
 		solenoidPtr->shiftX = param_g4number("solenoid_vx", "0") / cm;
@@ -106,10 +108,10 @@ void GField_Clas12BinFactory::load_field_definitions(GFieldDefinition gfd) {
 	if (!torus_name.empty()) {
 		const std::string path = field_dir + "/" + torus_name + ".dat";
 		if (!std::ifstream(path).good()) {
-			log->error(gfields::ERR_WRONG_FIELD_NOT_FOUND,
-			           "GField_Clas12BinFactory: torus map not found: ", path);
+			log->error(
+				gfields::ERR_WRONG_FIELD_NOT_FOUND, "GField_Clas12BinFactory: torus map not found: %1", path);
 		}
-		log->info(1, "Loading CLAS12 torus map: ", path);
+		log->info(1, "Loading CLAS12 torus map: %1", path);
 		torusPtr = initializeTorus(path.c_str());
 		torusPtr->scale  = param_g4number("torus_scale", "1");
 		torusPtr->shiftX = param_g4number("torus_vx", "0") / cm;
@@ -130,10 +132,10 @@ void GField_Clas12BinFactory::load_field_definitions(GFieldDefinition gfd) {
 	sinBeta  = sin(mapRotation[1]); cosBeta  = cos(mapRotation[1]);
 	sinGamma = sin(mapRotation[2]); cosGamma = cos(mapRotation[2]);
 
-	log->info(1, "CLAS12 binary field <", gfield_definitions.name,
-	          "> loaded. interpolation: ", interpolation,
-	          ", solenoid: ", solenoid_name.empty() ? "(none)" : solenoid_name,
-	          ", torus: ", torus_name.empty() ? "(none)" : torus_name);
+	log->info(
+		1, "CLAS12 binary field <%1> loaded. interpolation: %2, solenoid: %3, torus: %4",
+		gfield_definitions.name, interpolation, solenoid_name.empty() ? "(none)" : solenoid_name,
+		torus_name.empty() ? "(none)" : torus_name);
 }
 
 
@@ -161,9 +163,9 @@ void GField_Clas12BinFactory::GetFieldValue(const double x[3], G4double* bfield)
 
 	RotateField(bfield);
 
-	log->info(2, "CLAS12 binary field at (",
-	          x[0] / cm, ", ", x[1] / cm, ", ", x[2] / cm, ") cm = (",
-	          bfield[0] / gauss, ", ", bfield[1] / gauss, ", ", bfield[2] / gauss, ") gauss");
+	log->info(
+		2, "CLAS12 binary field at (%1, %2, %3) cm = (%4, %5, %6) gauss", x[0] / cm, x[1] / cm, x[2] / cm,
+		bfield[0] / gauss, bfield[1] / gauss, bfield[2] / gauss);
 }
 
 

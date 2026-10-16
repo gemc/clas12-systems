@@ -146,8 +146,9 @@ std::unique_ptr<GDigitizedData> FTOF_digitization::digitizeHitImpl(GHit* ghit, s
             case 5:
                 break;
             default:
-                log->warning("Unknown FTOF status ", ftc.status[secI][panI][pmt][padI], " for sector ", sector,
-                             ", panel ", panel, ", paddle ", paddle);
+                log->warning(
+                    "Unknown FTOF status %1 for sector %2, panel %3, paddle %4",
+                    ftc.status[secI][panI][pmt][padI], sector, panel, paddle);
         }
     }
 

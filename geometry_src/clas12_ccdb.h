@@ -54,8 +54,7 @@ inline std::unique_ptr<ccdb::Calibration> connect(const std::string& conn,
         return std::unique_ptr<ccdb::Calibration>(
             ccdb::CalibrationGenerator::CreateCalibration(conn));
     } catch (const std::exception& e) {
-        log->warning("could not open CCDB connection <", conn, ">: ", e.what(),
-                     " — check CCDB_CONNECTION.");
+        log->warning("could not open CCDB connection <%1>: %2 — check CCDB_CONNECTION.", conn, e.what());
         return nullptr;
     }
 }
@@ -81,13 +80,13 @@ inline bool loadTable(ccdb::Calibration* calib,
     try {
         calib->GetCalib(data, table);
     } catch (const std::exception& e) {
-        log->warning("CCDB query for table <", table, "> failed: ", e.what(),
-                     " — check CCDB_CONNECTION.");
+        log->warning("CCDB query for table <%1> failed: %2 — check CCDB_CONNECTION.", table, e.what());
         return false;
     }
     if (data.empty()) {
-        log->warning("CCDB table <", table, "> returned no rows — digitized output would be empty. "
-                     "Check CCDB_CONNECTION.");
+        log->warning(
+            "CCDB table <%1> returned no rows — digitized output would be empty. Check CCDB_CONNECTION.",
+            table);
         return false;
     }
     return true;

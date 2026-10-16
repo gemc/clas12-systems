@@ -70,8 +70,9 @@ std::unique_ptr<GDigitizedData> FTHODODigitization::digitizeHitImpl(GHit* ghit, 
             adc = 0;
             fadcTime = 0;
         } else if (status != 0 && status != 1 && status != 5) {
-            log->warning("Unknown FTHODO status ", status, " for sector/layer/component ", sector, "/", layer,
-                         "/", component);
+            log->warning(
+                "Unknown FTHODO status %1 for sector/layer/component %2/%3/%4", status, sector, layer,
+                component);
         }
     }
 

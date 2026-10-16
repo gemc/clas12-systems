@@ -32,6 +32,28 @@ on:
       - "**/*.md"
 
 jobs:
+  catalogs:
+    name: Validate message catalogs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Checkout GEMC catalog tools
+        uses: actions/checkout@v6
+        with:
+          repository: gemc/src
+          ref: main
+          path: .catalog-tools/gemc
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install YAML parser
+        run: python -m pip install PyYAML
+      - name: Check generated plugin catalogs
+        run: python .catalog-tools/gemc/ci/extract_messages.py validate-tree --root .
+
   discover:
     name: Create Job Matrix
     runs-on: ubuntu-latest
@@ -47,7 +69,7 @@ jobs:
 
   build:
     name: ${{ matrix.label }}
-    needs: [ discover ]
+    needs: [ discover, catalogs ]
     runs-on: ${{ matrix.runner }}
     container:
       image: ${{ matrix.container_image }}
@@ -77,7 +99,7 @@ jobs:
   final:
     name: Test - summary
     if: ${{ always() }}
-    needs: [ build ]
+    needs: [ build, catalogs ]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any required job failed

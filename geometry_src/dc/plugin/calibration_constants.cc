@@ -26,7 +26,7 @@ bool DC_digitization::loadConstantsImpl(int runno, std::string const& variation)
     std::string conn   = env ? env : "mysql://clas12reader@clasdb.jlab.org/clas12";
     char        db[256];
 
-    log->info(1, " Loading DC constants for run ", runno, ", variation ", variation, " from ", conn);
+    log->info(1, " Loading DC constants for run %1, variation %2 from %3", runno, variation, conn);
 
     auto calib = clas12ccdb::connect(conn, log);
     if (!calib) return false;
@@ -130,15 +130,16 @@ bool DC_digitization::loadConstantsImpl(int runno, std::string const& variation)
     try {
         std::unique_ptr<ccdb::Assignment> dcCore(calib->GetAssignment(db));
         if (dcCore == nullptr || dcCore->GetRowsCount() == 0) {
-            log->warning("CCDB table <", db, "> returned no rows — digitized output would be empty. "
-                         "Check CCDB_CONNECTION.");
+            log->warning(
+                "CCDB table <%1> returned no rows — digitized output would be empty. Check CCDB_CONNECTION.",
+                db);
             return false;
         }
         for (size_t row = 0; row < dcCore->GetRowsCount(); row++) {
             dcc.dLayer[row] = dcCore->GetValueDouble(row, 6);
         }
     } catch (const std::exception& e) {
-        log->warning("CCDB query for table <", db, "> failed: ", e.what(), " — check CCDB_CONNECTION.");
+        log->warning("CCDB query for table <%1> failed: %2 — check CCDB_CONNECTION.", db, e.what());
         return false;
     }
     for (int sl = 0; sl < 6; sl++) {
@@ -151,7 +152,7 @@ bool DC_digitization::loadConstantsImpl(int runno, std::string const& variation)
         dcc.miniStagger[l] = (l % 2 == 0) ? 0.300 * CLHEP::mm : -0.300 * CLHEP::mm;
     }
 
-    log->info(1, " DC constants loaded for run ", runno, ", variation ", variation);
+    log->info(1, " DC constants loaded for run %1, variation %2", runno, variation);
 
     return true;
 }

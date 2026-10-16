@@ -4,6 +4,10 @@ log_every: 100-0
 sql: gemc.sqlite
 
 gsystem:
+  - name: beamline
+    factory: sqlite
+  - name: beamline_cad
+    factory: sqlite
   - name: dc
     factory: sqlite
   - name: ec

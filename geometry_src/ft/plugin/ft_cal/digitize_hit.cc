@@ -60,7 +60,7 @@ std::unique_ptr<GDigitizedData> FTCALDigitization::digitizeHitImpl(GHit* ghit, s
         fadcTime = 0;
     } else if (accountForHardwareStatus && constants.status[crystal] != 0 &&
                constants.status[crystal] != 1 && constants.status[crystal] != 5) {
-        log->warning("Unknown FTCAL status ", constants.status[crystal], " for component ", crystal);
+        log->warning("Unknown FTCAL status %1 for component %2", constants.status[crystal], crystal);
     }
 
     auto digitized = std::make_unique<GDigitizedData>(gopts, ghit);

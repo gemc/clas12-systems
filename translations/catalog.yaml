@@ -1,0 +1,9 @@
+# English C++ is the source of truth. Build and subproject copies are always excluded.
+schema: 1
+languages: [it, ja, fr, zh]
+sources:
+  - geometry_src
+  - plugins
+exclude:
+  - "*Doxy.h"
+  - "*/examples/*"

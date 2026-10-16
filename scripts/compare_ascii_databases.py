@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -664,6 +665,66 @@ def compare_system(system: str, args: argparse.Namespace, output_dir: Path) -> t
         section_ok, section_messages = compare_section(system, section, generated_dir, reference_dir)
         messages.extend(section_messages)
         ok = ok and section_ok
+    if system == "beamline":
+        cad_ok, cad_messages = compare_beamline_cad(generated_dir, reference_dir)
+        messages.extend(cad_messages)
+        ok = ok and cad_ok
+    return ok, messages
+
+
+def compare_beamline_cad(generated_dir: Path, reference_dir: Path) -> tuple[bool, list[str]]:
+    """Compare both CAD companions against GEMC2's separate GXML placement files."""
+    fields = GEOMETRY_FIELDS + ("placement", "color", "visible", "style")
+    expected = {}
+    for path in sorted((reference_dir / "cad").glob("cad_*.gxml")):
+        variation = path.stem.removeprefix("cad_")
+        expected[("beamline_cad", variation)] = (path, "stls")
+    for path in sorted((reference_dir / "cad_transverse").glob("*/cad_default.gxml")):
+        variation = path.parent.name
+        expected[("beamline_transverse_cad", variation)] = (path, f"stls/{variation}")
+
+    generated = {}
+    for companion in ("beamline_cad", "beamline_transverse_cad"):
+        for variation, path in variation_files(generated_dir, companion, "geometry").items():
+            generated[(companion, variation)] = path
+
+    messages = []
+    ok = bool(expected)
+    if not expected:
+        messages.append("beamline: missing CAD reference placements")
+    for companion, variation in sorted(set(expected) | set(generated)):
+        key = (companion, variation)
+        label = f"beamline/{companion.removeprefix('beamline_')}_{variation}"
+        if key not in expected or key not in generated:
+            missing = "reference" if key not in expected else "generated"
+            messages.append(f"{label}: missing {missing} CAD variation")
+            ok = False
+            continue
+
+        reference_path, mesh_directory = expected[key]
+        reference_records = {}
+        for volume in ET.parse(reference_path).getroot().findall("volume"):
+            name = volume.attrib["name"]
+            reference_records[name] = {
+                "name": name, "mother": volume.get("mother", "root"), "solid": "CAD",
+                "position": normalize_field(volume.get("position", "0*mm 0*mm 0*mm")),
+                "rotation": normalize_field(volume.get("rotation", "0*deg 0*deg 0*deg")),
+                "dimensions": normalize_field(f"{mesh_directory}/{name}.stl, 1"),
+                "material": volume.attrib["material"], "digitization": "", "identifier": "",
+                "placement": "passive", "color": volume.attrib["color"].lower(), "visible": "1", "style": "1",
+            }
+        generated_records = {}
+        for row in parse_pipe_rows(generated[key]):
+            required_row_size(row, 20, generated[key])
+            record = new_geometry_record(row)
+            record.update(placement=row[7], color=row[11].lower(), visible=row[9], style=row[10])
+            generated_records[record["name"]] = record
+        differences = semantic_differences(generated_records, reference_records, fields, "CAD volume")
+        if differences:
+            messages.append(f"{label}: CAD differs\n" + "\n".join(differences))
+            ok = False
+        else:
+            messages.append(f"{label}: ok ({len(generated_records)} CAD rows)")
     return ok, messages
 
 

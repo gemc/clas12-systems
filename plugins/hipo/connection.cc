@@ -4,7 +4,7 @@
 
 bool GStreamerHIPOFactory::startRunImpl(const std::shared_ptr<GRunDataCollection>& run_data) {
     runNumber = run_data->getHeader()->getRunID();
-    log->info(1, FUNCTION_NAME, "run number: ", runNumber);
+    log->info(1, "%1run number: %2", FUNCTION_NAME, runNumber);
     return true;
 }
 
@@ -19,12 +19,12 @@ bool GStreamerHIPOFactory::openConnection() {
     }
 
     hipoWriter.open(filename().c_str());
-    log->info(1, FUNCTION_NAME, "opened HIPO file: ", filename());
+    log->info(1, "%1opened HIPO file: %2", FUNCTION_NAME, filename());
     return true;
 }
 
 bool GStreamerHIPOFactory::closeConnectionImpl() {
     hipoWriter.close();
-    log->info(1, FUNCTION_NAME, "closed HIPO file: ", filename());
+    log->info(1, "%1closed HIPO file: %2", FUNCTION_NAME, filename());
     return true;
 }

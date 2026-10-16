@@ -151,9 +151,7 @@ bool GStreamerHIPOFactory::publishEventDigitizedDataImpl(
     if (hasTDC) outEvent->addStructure(tdcBank);
     if (hasWF)  outEvent->addStructure(wfBank);
 
-    log->info(2, FUNCTION_NAME,
-              detectorName,
-              ": ADC=", hasADC, " TDC=", hasTDC, " WF=", hasWF,
-              " hits=", nHits);
+    log->info(
+        2, "%1%2: ADC=%3 TDC=%4 WF=%5 hits=%6", FUNCTION_NAME, detectorName, hasADC, hasTDC, hasWF, nHits);
     return true;
 }

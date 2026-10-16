@@ -23,8 +23,17 @@ set_java_home() {
   export JAVA_HOME
 }
 
+# GEMC compiles GUI catalogs with Qt 6 Linguist tools, also in CLAS12 source builds.
+qt_lrelease_available() {
+  local tool
+  for tool in lrelease6 lrelease-qt6 /usr/lib/qt6/bin/lrelease /usr/lib64/qt6/bin/lrelease; do
+    if command -v "$tool" >/dev/null 2>&1; then return 0; fi
+  done
+  return 1
+}
+
 if command -v java >/dev/null 2>&1 && command -v git-lfs >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
-  && command -v mvn >/dev/null 2>&1; then
+  && command -v mvn >/dev/null 2>&1 && qt_lrelease_available; then
   set_java_home
   java -version
   git-lfs version
@@ -47,13 +56,13 @@ if command -v dnf >/dev/null 2>&1; then
     exit 1
   fi
 
-  dnf install -y "$java_pkg" git-lfs jq maven
+  dnf install -y "$java_pkg" git-lfs jq maven qt6-qttools-devel qt6-qttranslations
 elif command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y --no-install-recommends openjdk-21-jdk git-lfs jq maven
+  apt-get install -y --no-install-recommends openjdk-21-jdk git-lfs jq maven qt6-l10n-tools qt6-translations-l10n
 elif command -v pacman >/dev/null 2>&1; then
-  pacman -Syu --noconfirm --needed jdk21-openjdk git-lfs jq maven
+  pacman -Syu --noconfirm --needed jdk21-openjdk git-lfs jq maven qt6-tools qt6-translations
 else
   echo "ERROR: unsupported package manager; cannot install Java, Maven, git-lfs, and jq" >&2
   exit 2

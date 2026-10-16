@@ -35,6 +35,6 @@ bool FTHODODigitization::loadTTImpl([[maybe_unused]] int runno,
     }
 
     translationTable = table;
-    log->info(1, " FTHODO translation table loaded: ", data.size(), " entries");
+    log->info(1, " FTHODO translation table loaded: %1 entries", data.size());
     return true;
 }

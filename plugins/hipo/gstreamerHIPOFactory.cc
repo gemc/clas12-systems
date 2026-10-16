@@ -96,7 +96,7 @@ const std::vector<std::string> GStreamerHIPOFactory::trueInfoIntVars = {
 int8_t GStreamerHIPOFactory::getDetectorID(const std::string& hitType) const {
     auto it = detectorIDMap.find(hitType);
     if (it != detectorIDMap.end()) return static_cast<int8_t>(it->second);
-    log->info(2, FUNCTION_NAME, "no detector id for '", hitType, "', using 0");
+    log->info(2, "%1no detector id for '%2', using 0", FUNCTION_NAME, hitType);
     return 0;
 }
 

@@ -13,7 +13,7 @@ experiments directory.
 Options:
   -f, --factory FACTORY   Output factory: sqlite (default) or ascii.
   -s, --systems SYSTEMS   Space- or comma-separated systems.
-                          Default: dc ftof ec pcal ltcc
+                          Default: beamline dc ft ftof ec ltcc pcal
   -p, --prefix PREFIX     Installation prefix. Defaults to the prefix configured
                           in build/.
   --no-install            Generate experiments/ without installing it.
@@ -22,19 +22,21 @@ Options:
 SQLite output is written to experiments/gemc.sqlite. ASCII files are written
 to experiments/SYSTEM/ for each selected system. Mapped STL directories are
 copied to experiments/SYSTEM/STL_DIRECTORY/ for either factory.
+SQLite CAD mesh paths are adjusted to match that collected directory layout.
 The completed experiments directory is copied to PREFIX/experiments unless
 --no-install is used.
 EOF
 }
 
 factory=sqlite
-systems=(dc ft ftof ec ltcc pcal)
+systems=(beamline dc ft ftof ec ltcc pcal)
 prefix=
 install_experiments=1
 
 # Space-separated geometry_src/<system> subdirectories containing runtime STL assets. Keep this map
 # explicit so adding CAD to another detector only requires adding its directory name here.
 typeset -A stl_directories=(
+	beamline 'stls stls/noWedges stls/forwardWedges stls/midpointWedges'
 	ltcc stls
 	htcc stls
 )
@@ -179,6 +181,39 @@ copy_stl_directories() {
 	done
 }
 
+relocate_sqlite_meshes() {
+	local system=$1
+	if (( ! ${+stl_directories[$system]} )); then
+		return
+	fi
+
+	# Standalone detector databases use detector-relative paths. The aggregate database sits one
+	# directory above the collected assets, and companion system names differ from that directory.
+	"$python_command" - "$experiments_dir" "$system" ${=stl_directories[$system]} <<'PY'
+from pathlib import Path
+import sqlite3
+import sys
+
+experiments = Path(sys.argv[1])
+system = sys.argv[2]
+stl_directories = sys.argv[3:]
+with sqlite3.connect(experiments / "gemc.sqlite") as db:
+    rows = db.execute("SELECT id, system, parameters FROM geometry WHERE solid='CAD'").fetchall()
+    for row_id, bank, parameters in rows:
+        if bank != system and not bank.startswith(f"{system}_"):
+            continue
+        mesh, separator, scale = (parameters or "").partition(",")
+        mesh = mesh.strip()
+        if not any(mesh.startswith(f"{directory}/") for directory in stl_directories):
+            continue
+        collected_mesh = Path(system) / mesh
+        if not (experiments / collected_mesh).is_file():
+            raise FileNotFoundError(f"Missing collected CAD mesh: {collected_mesh}")
+        db.execute("UPDATE geometry SET parameters=? WHERE id=?",
+                   (f"{collected_mesh}{separator}{scale}", row_id))
+PY
+}
+
 for system in $systems; do
 	if (( ${+seen_systems[$system]} )); then
 		continue
@@ -215,6 +250,9 @@ for system in $selected_systems; do
 	fi
 
 	copy_stl_directories "$system"
+	if [[ $factory == sqlite ]]; then
+		relocate_sqlite_meshes "$system"
+	fi
 done
 
 if [[ $factory == sqlite ]]; then

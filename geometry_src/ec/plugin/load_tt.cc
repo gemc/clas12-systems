@@ -15,7 +15,7 @@ bool ECAL_digitization::loadTTImpl([[maybe_unused]] int runno, [[maybe_unused]] 
     const char* env  = std::getenv("CCDB_CONNECTION");
     std::string conn = env ? env : "mysql://clas12reader@clasdb.jlab.org/clas12";
 
-    log->info(1, " Loading ECAL translation table from ", conn);
+    log->info(1, " Loading ECAL translation table from %1", conn);
 
     std::unique_ptr<ccdb::Calibration> calib(ccdb::CalibrationGenerator::CreateCalibration(conn));
     std::vector<std::vector<double>> data;
@@ -41,6 +41,6 @@ bool ECAL_digitization::loadTTImpl([[maybe_unused]] int runno, [[maybe_unused]] 
 
     translationTable = tt;
 
-    log->info(1, " ECAL translation table loaded: ", data.size(), " entries");
+    log->info(1, " ECAL translation table loaded: %1 entries", data.size());
     return true;
 }

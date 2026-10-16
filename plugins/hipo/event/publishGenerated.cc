@@ -58,7 +58,6 @@ bool GStreamerHIPOFactory::publishEventGeneratedParticlesImpl(
 
     outEvent->addStructure(mcEventBank);
 
-    log->info(2, FUNCTION_NAME,
-              "MC::Particle + MC::Event: ", nParticles, " particles");
+    log->info(2, "%1MC::Particle + MC::Event: %2 particles", FUNCTION_NAME, nParticles);
     return true;
 }

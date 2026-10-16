@@ -40,8 +40,7 @@ bool FTHODODigitization::loadConstantsImpl(int runno, std::string const& variati
     constants.ns_per_sample = 4.0 * CLHEP::ns;
     accountForHardwareStatus = gopts->getSwitch("ft_hodo_accountForHardwareStatus");
 
-    log->info(1, " Loading FTHODO constants for run ", runno, ", variation ", variation, " from ",
-              connection);
+    log->info(1, " Loading FTHODO constants for run %1, variation %2 from %3", runno, variation, connection);
 
     auto calib = clas12ccdb::connect(connection, log);
     if (!calib) return false;

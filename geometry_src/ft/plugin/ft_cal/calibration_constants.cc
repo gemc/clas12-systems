@@ -31,7 +31,7 @@ bool FTCALDigitization::loadConstantsImpl(int runno, std::string const& variatio
     constants.light_speed = 15.0 * cm / ns;
     accountForHardwareStatus = gopts->getSwitch("ft_cal_accountForHardwareStatus");
 
-    log->info(1, " Loading FTCAL constants for run ", runno, ", variation ", variation, " from ", connection);
+    log->info(1, " Loading FTCAL constants for run %1, variation %2 from %3", runno, variation, connection);
 
     auto calib = clas12ccdb::connect(connection, log);
     if (!calib) return false;

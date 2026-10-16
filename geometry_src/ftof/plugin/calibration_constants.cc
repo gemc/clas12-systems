@@ -27,7 +27,7 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
     ftc.pmtFactor = std::sqrt(1.0 + 1.0 / (ftc.pmtDynodeGain - 1.0));
     for (int p = 0; p < FTOFConstants::NPANEL; p++) ftc.dEMIP[p] = ftc.thick[p] * ftc.dEdxMIP;
 
-    log->info(1, " Loading FTOF constants for run ", runno, ", variation ", variation, " from ", conn);
+    log->info(1, " Loading FTOF constants for run %1, variation %2 from %3", runno, variation, conn);
 
     auto calib = clas12ccdb::connect(conn, log);
     if (!calib) return false;
@@ -184,6 +184,6 @@ bool FTOF_digitization::loadConstantsImpl(int runno, std::string const& variatio
               &ftc.pedestal_sigm[0][0][0][0] + sizeof(ftc.pedestal_sigm) / sizeof(ftc.pedestal_sigm[0][0][0][0]),
               2.0);
 
-    log->info(1, " FTOF constants loaded for run ", runno, ", variation ", variation);
+    log->info(1, " FTOF constants loaded for run %1, variation %2", runno, variation);
     return true;
 }

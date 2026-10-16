@@ -11,7 +11,7 @@ bool GStreamerHIPOFactory::startEventImpl(
     outEvent->reset();
     trueInfoBuffer.clear();
 
-    log->info(2, FUNCTION_NAME, "event ", event_data->getHeader()->getG4LocalEvn());
+    log->info(2, "%1event %2", FUNCTION_NAME, event_data->getHeader()->getG4LocalEvn());
     return true;
 }
 
@@ -42,8 +42,8 @@ bool GStreamerHIPOFactory::endEventImpl(
     outEvent->addStructure(trueInfoBank);
     hipoWriter.addEvent(*outEvent);
 
-    log->info(2, FUNCTION_NAME,
-              "wrote event ", event_data->getHeader()->getG4LocalEvn(),
-              " with ", trueInfoBuffer.size(), " MC::True rows");
+    log->info(
+        2, "%1wrote event %2 with %3 MC::True rows", FUNCTION_NAME, event_data->getHeader()->getG4LocalEvn(),
+        trueInfoBuffer.size());
     return true;
 }

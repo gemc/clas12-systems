@@ -20,7 +20,7 @@ bool HTCC_digitization::loadConstantsImpl(int runno, std::string const& variatio
 
     htccc = HTCCConstants{};
 
-    log->info(1, " Loading HTCC constants for run ", runno, ", variation ", variation, " from ", conn);
+    log->info(1, " Loading HTCC constants for run %1, variation %2 from %3", runno, variation, conn);
 
     auto calib = clas12ccdb::connect(conn, log);
     if (!calib) return false;
@@ -68,6 +68,6 @@ bool HTCC_digitization::loadConstantsImpl(int runno, std::string const& variatio
         htccc.ringShift[ringRow] = data[ringRow][3];
     }
 
-    log->info(1, " HTCC constants loaded for run ", runno, ", variation ", variation);
+    log->info(1, " HTCC constants loaded for run %1, variation %2", runno, variation);
     return true;
 }

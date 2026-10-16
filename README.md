@@ -59,6 +59,7 @@ This repository is under active migration from [`gemc/clas12Tags`](https://githu
 
 | System  | Status                    | Notes                                               |
 |---------|---------------------------|-----------------------------------------------------|
+| `beamline` | passive geometry       | Upcoming in the next release: native and CAD meshes |
 | `dc`    | geometry and plugin       | Uses coatjava as geometry source                    |
 | `ec`    | geometry and plugin       | Uses coatjava and the shared `ecal` plugin          |
 | `field` | plugin                    | CLAS12 mapped magnetic field via the cMag library   |
@@ -99,6 +100,25 @@ The [`gemc/pygemc`](https://github.com/gemc/pygemc) repository defines the Pytho
 ## Geometry Workflow
 
 Each detector system is self-contained under `geometry_src/<system>`.
+
+Upcoming in the next release: the beamline import preserves the native GEMC2 geometry and provides 49
+STL files, including the three transverse-magnet alternatives. Twenty-one beamline assets have reduced
+triangulations; the hub and adapter are renamed
+`Apex_Shield_Hub` and `Beamline_Adapter_1`. The other 28 meshes retain their original bytes, including the
+already-coarse exit-shield lead fill, whose tight casing clearances are preserved. The three FT adjuster
+meshes are replaced by one simplified `ft_adjuster` with matched reference union volume.
+The nine inner-shield bolts use `FTInnerShieldAndFlange_Bolt1` through `Bolt9`, with smooth shafts
+and simplified heads that match their copper volumes and leave clearance from the shield.
+The inner shield and flange assembly is renamed `FTInnerShieldAndFlange`, with its enclosed pocket preserved.
+The outer flange is renamed `FTOuterFlange` and simplified with its twelve bolt holes filled.
+The outer mount is renamed `FTOuterMount`, repaired, and relieved to clear the outer flange.
+The downstream FT inner shield is renamed `FTInnerShield`, with bolt holes closed and
+both flange faces smooth and the longitudinal grooves retained.
+The Moller cone is renamed `moller_cone`, with surface holes filled and its opening enlarged to clear
+the downstream FT inner shield. There is no sensitive digitization plugin.
+See the [beamline notes](geometry_src/beamline/README.md) for
+variations, steering cards,
+mesh-quality checks, the matched-primary benchmark, and remaining raw-mesh warnings.
 
 A typical system directory contains:
 
@@ -315,6 +335,7 @@ The CLAS12 system registry is currently in `meson.build`:
 
 ```meson
 clas12_systems = [
+    'beamline',
     'dc',
     'ec',
     'ft',
@@ -424,6 +445,40 @@ System plugins use a registry pattern:
 
 This keeps plugin installation consistent across CLAS12 systems and avoids each detector inventing its own build
 logic.
+
+### Logging Templates
+
+Upcoming in the next release: plugin logging uses the complete-message `GLogger` API. Keep the English
+sentence together and pass values through numbered placeholders:
+
+```cpp
+log->info(1, "Loaded %1 constants for run %2.", count, runno);
+```
+
+`debug`, `warning`, `error`, and `critical` use the same placeholder rules. Rebuild plugins against the
+matching GEMC headers; the former concatenating calls must be migrated. Dynamic diagnostic text can be
+passed as a value with `log->warning("%1", text)` so its percent signs remain literal.
+
+The generated English catalog lives in `translations/en.yaml`; `translations/catalog.yaml` selects the
+owning plugin sources. Regenerate or check it using the shared extractor from the sibling GEMC source tree:
+
+```shell
+../src/build/subprojects/pygemc/python_env/bin/python ../src/ci/extract_messages.py extract --root .
+../src/build/subprojects/pygemc/python_env/bin/python ../src/ci/extract_messages.py extract --root . --check
+../src/build/subprojects/pygemc/python_env/bin/python ../src/ci/extract_messages.py validate-tree --root .
+```
+
+Edit English messages in C++, rather than the generated catalog. See the
+[catalog guide](https://github.com/gemc/src/blob/main/translations/README.md) for translation validation.
+Runtime logging selects the language automatically; `-language=it` selects Italian and `-language=en`
+forces English. Missing messages retain their English text. Meson installs plugin catalogs under
+`<prefix>/share/gemc/translations/clas12`; existing plugin search paths expose catalogs in other installation
+prefixes. Rebuild plugins against matching GEMC headers and the new `glogging` library. The shared
+Claude/Codex workflow generates language catalogs through the existing weekday cron job; its
+`gemc/clas12-messages` entry uses validated, resumable batches and tracks the source git commit.
+The Test workflow also validates every generated catalog without agents, checking required language files,
+keys, placeholders, percent escapes, and whitespace. Missing messages report coverage with English fallback;
+translation accuracy remains part of agent review.
 
 <br/>
 

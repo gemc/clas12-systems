@@ -29,7 +29,7 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     ecc.pmtDynodeGain   = 4.0;
     ecc.pmtFactor       = std::sqrt(1.0 + 1.0 / (ecc.pmtDynodeGain - 1.0));
 
-    log->info(1, " Loading ECAL constants for run ", runno, ", variation ", variation, " from ", conn);
+    log->info(1, " Loading ECAL constants for run %1, variation %2 from %3", runno, variation, conn);
 
     auto calib = clas12ccdb::connect(conn, log);
     if (!calib) return false;
@@ -184,6 +184,6 @@ bool ECAL_digitization::loadConstantsImpl(int runno, std::string const& variatio
     ecc.vpar[2] = 20.0;
     ecc.vpar[3] = 1.0;
 
-    log->info(1, " ECAL constants loaded for run ", runno, ", variation ", variation);
+    log->info(1, " ECAL constants loaded for run %1, variation %2", runno, variation);
     return true;
 }

@@ -1,0 +1,121 @@
+<!-- Placements from clas12Tags/geometry_source/beamline/cad/cad_default.gxml -->
+<gxml>
+  <volume
+    name="FTInnerShieldAndFlange"
+    color="8899dd"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="beamline_W"/>
+  <volume
+    name="FTOuterFlange"
+    color="999999"
+    position="0*mm 0*mm 1272.77*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_STAINLESS-STEEL"/>
+  <volume
+    name="FTOuterMount"
+    color="aa8888"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_STAINLESS-STEEL"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt1"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt2"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt3"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt4"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt5"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt6"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt7"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt8"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShieldAndFlange_Bolt9"
+    color="992222"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_Cu"/>
+  <volume
+    name="FTInnerShield"
+    color="bb1111"
+    position="0*mm 0*mm 1643.00*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="beamline_W"/>
+  <volume
+    name="moller_cone"
+    color="22ffff"
+    position="0*mm 0*mm 1589.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="beamline_W"/>
+  <volume
+    name="ft_adjuster"
+    color="22ffff"
+    position="0*mm 0*mm 1273.27*mm"
+    rotation="0*deg 180*deg 0*deg"
+    material="G4_STAINLESS-STEEL"/>
+  <volume
+    name="Apex_Shield_Lead_Fill"
+    color="aaffff"
+    material="G4_Pb"/>
+  <volume
+    name="Apex_Shield_Hub"
+    color="555555"
+    material="beamline_CarbonSteel"/>
+  <volume
+    name="Torus_Exit_Shield_Lead_Fill"
+    color="aaffff"
+    material="G4_Pb"/>
+  <volume
+    name="Torus_Exit_Shield_Casing"
+    color="555555"
+    material="G4_STAINLESS-STEEL"/>
+  <volume
+    name="Downstream_Beam_tube_Segment_1"
+    color="995599"
+    material="G4_STAINLESS-STEEL"/>
+  <volume
+    name="Downstream_Beam_tube_Segment_2"
+    color="995599"
+    material="G4_STAINLESS-STEEL"/>
+  <volume
+    name="Beamline_Adapter_1"
+    color="ffffaa"
+    material="G4_Al"/>
+</gxml>

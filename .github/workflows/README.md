@@ -44,7 +44,10 @@ deployment-authorized and therefore rebuilds the CLAS12 images.
 
 - [`test.yml`](test.yml) — **Test**
   - Trigger: pull requests, merge queue runs, pushes to `main`, tag pushes, and `workflow_call`.
-  - Effect: builds and tests GEMC and the CLAS12 systems inside the supported Geant4 image matrix.
+  - Effect: validates plugin message catalogs, then builds and tests GEMC and CLAS12 in the Geant4 image matrix.
+  - Upcoming in the next release: the Python catalog job uses the validator from GEMC `main`, matching the
+    build dependency, and requires no agent credentials. It checks freshness, required language files,
+    metadata, keys, parameters, percent escapes, and whitespace. Missing messages retain English fallback.
   - Downstream: `Deploy` only for a successful push to `main`.
 - [`test_after_src.yml`](test_after_src.yml) — **Test after gemc/src deploy**
   - Trigger: API or manual `workflow_dispatch`; the upstream dispatcher selects `main`.

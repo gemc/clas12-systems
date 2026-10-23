@@ -1,0 +1,157 @@
+{
+  "UpstreamShieldingPlate": {
+    "original": {
+      "sha256": "45b5303255fbfdd4b1f6df5c2d086930cb5e12c1466cb581c328df004824ae9c",
+      "triangles": 1380,
+      "bytes": 69084,
+      "bounds_mm": [
+        [
+          -175.0,
+          -175.0,
+          -1561.1942138671875
+        ],
+        [
+          175.0,
+          175.0,
+          -1557.994140625
+        ]
+      ],
+      "volume_mm3": 243544.1538935598,
+      "topology": {
+        "boundary_edges": 0,
+        "connected_components_number": 1,
+        "edges_number": 2070,
+        "faces_number": 1380,
+        "genus": 9,
+        "incident_faces_on_non_two_manifold_edges": 0,
+        "incident_faces_on_non_two_manifold_vertices": 0,
+        "is_mesh_two_manifold": true,
+        "non_two_manifold_edges": 0,
+        "non_two_manifold_vertices": 0,
+        "number_holes": 0,
+        "unreferenced_vertices": 0,
+        "vertices_number": 674
+      },
+      "zero_area_triangles": 0,
+      "self_intersecting_faces": 0
+    },
+    "filled": {
+      "sha256": "7e5d5dfe22fefbf287908d9d9d754b6a1b020ec4d2178ee669c4fc80617137d4",
+      "triangles": 508,
+      "bytes": 25484,
+      "bounds_mm": [
+        [
+          -175.0,
+          -175.0,
+          -1561.1942138671875
+        ],
+        [
+          175.0,
+          175.0,
+          -1557.994140625
+        ]
+      ],
+      "volume_mm3": 249076.58328401516,
+      "topology": {
+        "boundary_edges": 0,
+        "connected_components_number": 1,
+        "edges_number": 762,
+        "faces_number": 508,
+        "genus": 1,
+        "incident_faces_on_non_two_manifold_edges": 0,
+        "incident_faces_on_non_two_manifold_vertices": 0,
+        "is_mesh_two_manifold": true,
+        "non_two_manifold_edges": 0,
+        "non_two_manifold_vertices": 0,
+        "number_holes": 0,
+        "unreferenced_vertices": 0,
+        "vertices_number": 254
+      },
+      "zero_area_triangles": 0,
+      "self_intersecting_faces": 0
+    },
+    "analytic_volume_mm3": 249076.58328401475,
+    "preserved_non_cap_faces": null,
+    "through_holes_filled": 8,
+    "blind_holes_filled": 0
+  },
+  "UpstreamVacuumJacket": {
+    "original": {
+      "sha256": "af1bdbe5b7de5104c8d9fbc64f255f771bb0dac8d290e94aeaa07a33d7d4544e",
+      "triangles": 2876,
+      "bytes": 143884,
+      "bounds_mm": [
+        [
+          -221.06051635742188,
+          -229.87901306152344,
+          -1515.1160888671875
+        ],
+        [
+          221.06051635742188,
+          229.87901306152344,
+          -1483.3660888671875
+        ]
+      ],
+      "volume_mm3": 3649980.788314921,
+      "topology": {
+        "boundary_edges": 0,
+        "connected_components_number": 1,
+        "edges_number": 4314,
+        "faces_number": 2876,
+        "genus": 1,
+        "incident_faces_on_non_two_manifold_edges": 0,
+        "incident_faces_on_non_two_manifold_vertices": 0,
+        "is_mesh_two_manifold": true,
+        "non_two_manifold_edges": 0,
+        "non_two_manifold_vertices": 0,
+        "number_holes": 0,
+        "unreferenced_vertices": 0,
+        "vertices_number": 1438
+      },
+      "zero_area_triangles": 0,
+      "self_intersecting_faces": 0
+    },
+    "filled": {
+      "sha256": "1eba1baefdb84272fd40a7a79265f26910aff76e43424e4c4b8c5ed4752d2544",
+      "triangles": 1004,
+      "bytes": 50284,
+      "bounds_mm": [
+        [
+          -221.06051635742188,
+          -229.87901306152344,
+          -1515.1160888671875
+        ],
+        [
+          221.06051635742188,
+          229.87901306152344,
+          -1483.3660888671875
+        ]
+      ],
+      "volume_mm3": 3669204.137370322,
+      "topology": {
+        "boundary_edges": 0,
+        "connected_components_number": 1,
+        "edges_number": 1506,
+        "faces_number": 1004,
+        "genus": 1,
+        "incident_faces_on_non_two_manifold_edges": 0,
+        "incident_faces_on_non_two_manifold_vertices": 0,
+        "is_mesh_two_manifold": true,
+        "non_two_manifold_edges": 0,
+        "non_two_manifold_vertices": 0,
+        "number_holes": 0,
+        "unreferenced_vertices": 0,
+        "vertices_number": 502
+      },
+      "zero_area_triangles": 0,
+      "self_intersecting_faces": 0
+    },
+    "analytic_volume_mm3": null,
+    "preserved_non_cap_faces": 894,
+    "through_holes_filled": 0,
+    "blind_holes_filled": 6
+  },
+  "retained_gap_mm": 42.8780517578125,
+  "source_faces": 4256,
+  "optimized_faces": 1512
+}

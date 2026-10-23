@@ -8,29 +8,29 @@ Needs pymeshlab, so run it with the gemc-dev python environment (the same one th
 
     /opt/jlab_software/<platform>/gemc/dev/python_env/bin/python3 build_cad_meshes.py
 
-The three HTCC beamline cones (the entry cone and the two Moller cones) are loaded by GEMC2 as raw
-CADMesh tessellated solids. Here each is cured into a watertight, coherently oriented, decimated
-G4-ready solid: vertices merged, open boundaries closed, normals made outward, and (for htccMollerCone)
-self-intersections removed. The cones keep their real shape — no hole filling and no reconstruction — so
-the double-walled htccCone/htccMollerConeExt keep both shells. Placement is authored per variation in
-geometry.py (`build_cad`); there are no per-copy placements.
+Rebuild from archived engineering inputs, never from the already processed active meshes. The entry cone
+and extension use the existing curing recipe. The Moller cone uses a dedicated union of its engineering
+cone and collar, resolving the internal seam while retaining its bore and bounds. No Poisson reconstruction
+or engineering-hole filling is used. Placement is authored per variation in geometry.py (`build_cad`).
 """
 
+import argparse
 import os
-import sys
+from pathlib import Path
 
 import pymeshlab as ml
 
 from pygemc.utilities import cure_mesh
+from repair_moller_cone import repair
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CAD = "/opt/projects/gemc/clas12Tags/geometry_source/htcc/cad"
+CAD = "/opt/projects/gemc/clas12Tags/geometry_source/htcc/cad_original"
 DST = os.path.join(HERE, "stls")
 
 # name: (target_faces, remove_self_intersections). target_faces=0 keeps the source resolution.
 MESHES = {
     "htccCone": (6000, False),          # double-walled entry cone, decimated from 18818 facets
-    "htccMollerCone": (6000, True),     # single-shell Moller cone; needs self-intersection removal
+    "htccMollerCone": (0, False),      # dedicated engineering cone/collar union, preserving the bore
     "htccMollerConeExt": (0, False),    # small double-walled extension, already light (1748 facets)
 }
 
@@ -47,12 +47,17 @@ def report(path):
           f"CC={topo.get('connected_components_number')} nonmanifold={nm}")
 
 
-def build():
-    os.makedirs(DST, exist_ok=True)
-    for name, (target_faces, remove_self_intersections) in MESHES.items():
-        out = os.path.join(DST, name + ".stl")
+def build(source=CAD, output=DST, names=None):
+    os.makedirs(output, exist_ok=True)
+    for name in names or MESHES:
+        target_faces, remove_self_intersections = MESHES[name]
+        out = os.path.join(output, name + ".stl")
+        if name == "htccMollerCone":
+            repair(Path(source) / (name + ".stl"), Path(out))
+            report(out)
+            continue
         cure_mesh(
-            os.path.join(CAD, name + ".stl"), out,
+            os.path.join(source, name + ".stl"), out,
             target_faces=target_faces,
             remove_self_intersections=remove_self_intersections,
             verbose=False,
@@ -60,13 +65,19 @@ def build():
         report(out)
 
 
-def report_only():
-    for name in MESHES:
-        report(os.path.join(DST, name + ".stl"))
+def report_only(output=DST, names=None):
+    for name in names or MESHES:
+        report(os.path.join(output, name + ".stl"))
 
 
 if __name__ == "__main__":
-    if "--report" in sys.argv:
-        report_only()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--report", action="store_true")
+    parser.add_argument("--source", type=Path, default=Path(CAD))
+    parser.add_argument("--output", type=Path, default=Path(DST))
+    parser.add_argument("--mesh", action="append", choices=MESHES)
+    args = parser.parse_args()
+    if args.report:
+        report_only(args.output, args.mesh)
     else:
-        build()
+        build(args.source, args.output, args.mesh)

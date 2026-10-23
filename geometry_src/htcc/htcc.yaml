@@ -16,7 +16,6 @@ global_field: clas12
 gsystem:
   - name: htcc
     factory: sqlite
-    digitization: htcc
   - name: htcc_cad
     factory: sqlite
 

@@ -4,24 +4,46 @@ log_every: 100-0
 sql: gemc.sqlite
 
 gsystem:
+  - name: solenoid
+    factory: sqlite
+  - name: magnets_cad
+    factory: sqlite
+  - name: ft
+    factory: sqlite
   - name: beamline
     factory: sqlite
   - name: beamline_cad
     factory: sqlite
+  - name: htcc
+    factory: sqlite
+    digitization: htcc
+  - name: htcc_cad
+    factory: sqlite
   - name: dc
+    factory: sqlite
+  - name: dc_cad
+    factory: sqlite
+  - name: ltcc
     factory: sqlite
   - name: ec
     factory: sqlite
     digitization: ecal
-  - name: ft
-    factory: sqlite
-  - name: ftof
-    factory: sqlite
-  - name: ltcc
-    factory: sqlite
   - name: pcal
     factory: sqlite
     digitization: ecal
+  - name: ftof
+    factory: sqlite
+
+
+gfields:
+  - name: clas12
+    type: clas12-cmag
+    solenoid: Symm_solenoid_r601_phi1_z1201_13June2018
+    torus: Symm_torus_r2501_phi16_z251_24Apr2018
+    solenoid_scale: -1
+    torus_scale: -1
+
+global_field: clas12
 
 
 phys_list: FTFP_BERT

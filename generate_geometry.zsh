@@ -13,7 +13,7 @@ experiments directory.
 Options:
   -f, --factory FACTORY   Output factory: sqlite (default) or ascii.
   -s, --systems SYSTEMS   Space- or comma-separated systems.
-                          Default: beamline dc ft ftof ec ltcc pcal
+                          Default: beamline dc ft ftof ec htcc ltcc magnets pcal
   -p, --prefix PREFIX     Installation prefix. Defaults to the prefix configured
                           in build/.
   --no-install            Generate experiments/ without installing it.
@@ -29,7 +29,7 @@ EOF
 }
 
 factory=sqlite
-systems=(beamline dc ft ftof ec ltcc pcal)
+systems=(beamline dc ft ftof ec htcc ltcc magnets pcal)
 prefix=
 install_experiments=1
 
@@ -39,6 +39,8 @@ typeset -A stl_directories=(
 	beamline 'stls stls/noWedges stls/forwardWedges stls/midpointWedges'
 	ltcc stls
 	htcc stls
+	magnets stls
+	dc cad
 )
 
 while (( $# > 0 )); do

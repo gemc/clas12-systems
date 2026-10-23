@@ -98,17 +98,9 @@ test_env.set('COATJAVA_FACTORY_CLASSES', meson.current_build_dir())
 # Python / geometry infrastructure (pygemc)
 pygemc_sub = subproject('pygemc')
 venv_bin   = pygemc_sub.get_variable('venv_bin')
-python_exe = import('python').find_installation(venv_bin / 'python3')
+python_exe = pygemc_sub.get_variable('python_exe')
 
-# GEMC registers its Python installer when built from source. With an installed GEMC, install the
-# same pygemc environment here so geometry tools are updated alongside the CLAS12 plugins.
-if not gemc_is_subproject
-    meson.add_install_script(
-        python_exe,
-        files('ci/install_python_env.py'),
-        pygemc_sub.get_variable('pygemc_source_dir'),
-    )
-endif
+# pygemc registers its own install hook, including when GEMC is already installed.
 
 # Register geometry_src/ in the venv via a .pth file so every detector script
 # can import clas12_common without per-detector sys.path boilerplate.
@@ -142,6 +134,7 @@ clas12_systems = [
     'ftof',
     'htcc',
     'ltcc',
+    'magnets',
     'pcal',
 ]
 geometry_test_timeout = 600

@@ -26,6 +26,16 @@ def main():
     system = detector.name
     card = yaml.safe_load((detector / f"{system}.yaml").read_text())
     cards = [card]
+    if system == "magnets":
+        sys.path.insert(0, str(detector))
+        from variations import custom_variation_to_run, variation_to_run
+
+        cards = []
+        for runno in {**variation_to_run, **custom_variation_to_run}.values():
+            case = deepcopy(card)
+            case["runno"] = runno
+            case["check_overlaps"] = 2
+            cards.append(case)
     if system == "beamline":
         sys.path.insert(0, str(detector))
         from variations import custom_variation_to_run, transverse_variation_to_run, variation_to_run
@@ -69,9 +79,11 @@ def main():
         directory = Path(temp)
 
         # SQLite CAD rows use stls/<mesh>; the directory-based CAD factory uses <system>_cad/.
-        meshes = detector / "stls"
+        meshes = detector / ("cad" if system == "dc" else "stls")
         if meshes.is_dir():
             (directory / "stls").symlink_to(meshes, target_is_directory=True)
+            if system == "dc":
+                (directory / "cad").symlink_to(meshes, target_is_directory=True)
             (directory / f"{system}_cad").symlink_to(meshes, target_is_directory=True)
 
         for case in cards:
@@ -84,10 +96,10 @@ def main():
             output = run([str(gemc), str(steering), f"-plugin_path={plugins}"], directory)
             if "references missing mesh" in output or "no mesh file was found" in output:
                 raise RuntimeError(f"{system}: GEMC skipped a required CAD mesh:\n{output}")
-            if system == "beamline":
+            if system in ("beamline", "magnets"):
                 built = re.search(r"(\d+) geant4 built volumes", output)
                 if not built or int(built[1]) != expected:
-                    raise RuntimeError(f"Wrong volume count for beamline run {case['runno']}:\n{output}")
+                    raise RuntimeError(f"Wrong volume count for {system} run {case['runno']}:\n{output}")
             print(f"GEMC constructed {system} run {case['runno']} and loaded its plugins successfully.")
 
 

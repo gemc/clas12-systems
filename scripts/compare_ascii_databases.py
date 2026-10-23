@@ -564,6 +564,10 @@ def variation_files(directory: Path, system: str, section: str) -> dict[str, Pat
     prefix = f"{system}__{section}_"
     suffix = ".txt"
     for path in sorted(directory.glob(f"{prefix}*{suffix}")):
+        # pygemc may initialize an empty material file for a system using only Geant4 materials;
+        # GEMC2 omits that file entirely.
+        if section == "materials" and not parse_pipe_rows(path):
+            continue
         variation = path.name[len(prefix) : -len(suffix)]
         files[variation] = path
     return files
@@ -616,14 +620,15 @@ def compare_section(
     generated_dir: Path,
     reference_dir: Path,
 ) -> tuple[bool, list[str]]:
+    native_system = "solenoid" if system == "magnets" else system
     generated_files = {
         variation: [path]
-        for variation, path in variation_files(generated_dir, system, section).items()
+        for variation, path in variation_files(generated_dir, native_system, section).items()
     }
     for companion in COMPANION_SYSTEMS.get(system, ()):
         for variation, path in variation_files(generated_dir, companion, section).items():
             generated_files.setdefault(variation, []).append(path)
-    reference_files = variation_files(reference_dir, system, section)
+    reference_files = variation_files(reference_dir, native_system, section)
 
     # Systems built entirely from standard Geant4 materials ship no materials files.
     if not generated_files and not reference_files:
@@ -665,36 +670,43 @@ def compare_system(system: str, args: argparse.Namespace, output_dir: Path) -> t
         section_ok, section_messages = compare_section(system, section, generated_dir, reference_dir)
         messages.extend(section_messages)
         ok = ok and section_ok
-    if system == "beamline":
-        cad_ok, cad_messages = compare_beamline_cad(generated_dir, reference_dir)
+    if system in ("beamline", "magnets", "dc"):
+        cad_ok, cad_messages = compare_cad(generated_dir, reference_dir, system)
         messages.extend(cad_messages)
         ok = ok and cad_ok
     return ok, messages
 
 
-def compare_beamline_cad(generated_dir: Path, reference_dir: Path) -> tuple[bool, list[str]]:
-    """Compare both CAD companions against GEMC2's separate GXML placement files."""
+def compare_cad(generated_dir: Path, reference_dir: Path, system: str) -> tuple[bool, list[str]]:
+    """Compare CAD companions against GEMC2's separate GXML placement files."""
     fields = GEOMETRY_FIELDS + ("placement", "color", "visible", "style")
+    companion = f"{system}_cad"
+    companions = [companion]
     expected = {}
     for path in sorted((reference_dir / "cad").glob("cad_*.gxml")):
         variation = path.stem.removeprefix("cad_")
-        expected[("beamline_cad", variation)] = (path, "stls")
-    for path in sorted((reference_dir / "cad_transverse").glob("*/cad_default.gxml")):
-        variation = path.parent.name
-        expected[("beamline_transverse_cad", variation)] = (path, f"stls/{variation}")
+        expected[(companion, variation)] = (path, "cad" if system == "dc" else "stls")
+        if system == "dc":
+            for alias in ("rga_spring2018", "rga_fall2018", "ddvcs"):
+                expected[(companion, alias)] = (path, "cad")
+    if system == "beamline":
+        companions.append("beamline_transverse_cad")
+        for path in sorted((reference_dir / "cad_transverse").glob("*/cad_default.gxml")):
+            variation = path.parent.name
+            expected[("beamline_transverse_cad", variation)] = (path, f"stls/{variation}")
 
     generated = {}
-    for companion in ("beamline_cad", "beamline_transverse_cad"):
+    for companion in companions:
         for variation, path in variation_files(generated_dir, companion, "geometry").items():
             generated[(companion, variation)] = path
 
     messages = []
     ok = bool(expected)
     if not expected:
-        messages.append("beamline: missing CAD reference placements")
+        messages.append(f"{system}: missing CAD reference placements")
     for companion, variation in sorted(set(expected) | set(generated)):
         key = (companion, variation)
-        label = f"beamline/{companion.removeprefix('beamline_')}_{variation}"
+        label = f"{system}/{companion.removeprefix(f'{system}_')}_{variation}"
         if key not in expected or key not in generated:
             missing = "reference" if key not in expected else "generated"
             messages.append(f"{label}: missing {missing} CAD variation")
@@ -713,6 +725,8 @@ def compare_beamline_cad(generated_dir: Path, reference_dir: Path) -> tuple[bool
                 "material": volume.attrib["material"], "digitization": "", "identifier": "",
                 "placement": "passive", "color": volume.attrib["color"].lower(), "visible": "1", "style": "1",
             }
+            if volume.get("copyOf"):
+                reference_records[name].update(solid=f"CopyOf {volume.attrib['copyOf']}", dimensions="0")
         generated_records = {}
         for row in parse_pipe_rows(generated[key]):
             required_row_size(row, 20, generated[key])

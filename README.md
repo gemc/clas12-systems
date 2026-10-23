@@ -66,6 +66,7 @@ This repository is under active migration from [`gemc/clas12Tags`](https://githu
 | `ft`    | geometry and plugins      | Upcoming next release: FTCAL, FTHODO, and FTTRK     |
 | `ftof`  | geometry and plugin       | Uses coatjava as geometry source                    |
 | `ltcc`  | geometry and plugin       | Native and CAD geometry with optical surfaces       |
+| `magnets` | passive geometry      | Upcoming in the next release: solenoid and all CAD |
 | `pcal`  | geometry and shared plugin | Uses coatjava and the shared `ecal` plugin         |
 
 
@@ -100,6 +101,14 @@ The [`gemc/pygemc`](https://github.com/gemc/pygemc) repository defines the Pytho
 ## Geometry Workflow
 
 Each detector system is self-contained under `geometry_src/<system>`.
+
+Upcoming in the next release: [magnets](geometry_src/magnets/README.md) provides the native solenoid and
+39 CAD placements from 20 STL files, with passive placements and the three GEMC2 run configurations.
+The six region-1 DC
+back membranes and six supports now belong to [DC](geometry_src/dc/README.md), each group using one STL
+and five passive copies. Duplicate
+`DSShield*` and `apex` shielding is supplied by the beamline system. The upstream and downstream plates
+and vacuum jackets retain their original names as separate optimized meshes with fastener holes filled.
 
 Upcoming in the next release: the beamline import preserves the native GEMC2 geometry and provides 49
 STL files, including the three transverse-magnet alternatives. Twenty-one beamline assets have reduced
@@ -247,6 +256,10 @@ need to be pre-installed: if it is not found, it is compiled from the `gemc` sub
 same `--prefix`. This is what lets CLAS12 systems be installed from scratch on a bare Geant4 environment (see
 the callout in the [GEMC](#gemc) section).
 
+Upcoming in the next release: the pygemc subproject manages both Python environments and installs
+its dependencies during `meson install`, whether GEMC is already installed or built as a subproject.
+Python 3.10-3.14 is supported, and `pymeshlab` remains required.
+
 Configure, build, and test:
 
 ```shell
@@ -341,6 +354,7 @@ clas12_systems = [
     'ft',
     'ftof',
     'ltcc',
+    'magnets',
     'pcal',
 ]
 ```

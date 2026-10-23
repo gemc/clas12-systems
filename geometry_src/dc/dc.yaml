@@ -16,6 +16,8 @@ global_field: clas12
 gsystem:
   - name: dc
     factory: sqlite
+  - name: dc_cad
+    factory: sqlite
 
 
 gstreamer:

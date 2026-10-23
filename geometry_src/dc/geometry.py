@@ -9,6 +9,7 @@ import math
 import sys
 from pathlib import Path
 import re
+import xml.etree.ElementTree as ET
 
 from pygemc import GVolume
 
@@ -24,6 +25,24 @@ DDVCS_SHIELD_X_CENTER = 227.2394445
 DDVCS_SHIELD_Z_CENTER = 457.3735853
 DDVCS_SHIELD_HALF_LENGTH_Z = 16.6
 DDVCS_SHIELD_Z_ALLOWANCE = 8.0
+
+
+def build_cad(configuration):
+    """Two region-1 source STLs, each reused with five passive sector copies."""
+    placements = Path(__file__).resolve().parent / "cad" / "cad_default.gxml"
+    for row in ET.parse(placements).getroot().findall("volume"):
+        volume = GVolume(row.attrib["name"])
+        volume.material = row.attrib["material"]
+        volume.color = row.attrib["color"]
+        volume.style = 1
+        volume.position = ", ".join(row.attrib["position"].split())
+        volume.rotations = [", ".join(row.attrib["rotation"].split())]
+        if row.get("copyOf"):
+            volume.copyOf = row.attrib["copyOf"]
+        else:
+            volume.solid = "CAD"
+            volume.parameters = f"cad/{volume.name}.stl, 1"
+        volume.publish_passive(configuration)
 
 
 def build_dc(configuration):

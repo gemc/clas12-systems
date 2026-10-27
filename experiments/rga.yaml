@@ -4,9 +4,7 @@ log_every: 100-0
 sql: gemc.sqlite
 
 gsystem:
-  - name: solenoid
-    factory: sqlite
-  - name: magnets_cad
+  - name: magnets
     factory: sqlite
   - name: ft
     factory: sqlite
@@ -20,8 +18,6 @@ gsystem:
   - name: htcc_cad
     factory: sqlite
   - name: dc
-    factory: sqlite
-  - name: dc_cad
     factory: sqlite
   - name: ltcc
     factory: sqlite

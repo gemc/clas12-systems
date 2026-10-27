@@ -4,9 +4,7 @@ nthreads: 1
 log_every: 100-0
 
 gsystem:
-  - name: solenoid
-    factory: sqlite
-  - name: magnets_cad
+  - name: magnets
     factory: sqlite
 
 phys_list: FTFP_BERT

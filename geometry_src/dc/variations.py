@@ -10,16 +10,10 @@ from clas12_common import DC_CUSTOM_START
 
 variation_to_run = {
     "default": 11,
+    "rga_spring2018": 3029,
+    "rga_fall2018": 4763,
 }
 
 custom_variation_to_run = {
     "ddvcs": DC_CUSTOM_START,
-}
-
-# Preserve exact CAD run keys from the magnets banks these membranes previously belonged to.
-cad_variation_to_run = {
-    **variation_to_run,
-    "rga_spring2018": 3029,
-    "rga_fall2018": 4763,
-    **custom_variation_to_run,
 }

@@ -18,7 +18,7 @@ gsystem:
     factory: sqlite
     digitization: ltcc
   - name: ltcc_cad
-    factory: CAD
+    factory: sqlite
 
 gstreamer:
   - format: csv

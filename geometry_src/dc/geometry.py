@@ -51,8 +51,8 @@ def build_dc(configuration):
     source_variation = configuration.variation
     source_run = configuration.runno
 
-    # DDVCS reuses the default DC chamber geometry and adds a custom region-3 shield below.
-    if configuration.variation == "ddvcs":
+    # Survey run keys retain the default DC chambers. DDVCS also adds its region-3 shield below.
+    if configuration.variation in ("rga_spring2018", "rga_fall2018", "ddvcs"):
         source_variation = "default"
         source_run = variation_to_run["default"]
 

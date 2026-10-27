@@ -25,20 +25,18 @@ def main():
     gemc, plugins, detector, database = (Path(arg).resolve() for arg in sys.argv[1:])
     system = detector.name
     card = yaml.safe_load((detector / f"{system}.yaml").read_text())
-    cards = [card]
-    if system == "magnets":
-        sys.path.insert(0, str(detector))
-        from variations import custom_variation_to_run, variation_to_run
+    sys.path.insert(0, str(detector))
+    from variations import custom_variation_to_run, variation_to_run
 
-        cards = []
-        for runno in {**variation_to_run, **custom_variation_to_run}.values():
-            case = deepcopy(card)
-            case["runno"] = runno
+    cards = []
+    for runno in {**variation_to_run, **custom_variation_to_run}.values():
+        case = deepcopy(card)
+        case["runno"] = runno
+        if system in ("magnets", "dc"):
             case["check_overlaps"] = 2
-            cards.append(case)
+        cards.append(case)
     if system == "beamline":
-        sys.path.insert(0, str(detector))
-        from variations import custom_variation_to_run, transverse_variation_to_run, variation_to_run
+        from variations import transverse_variation_to_run
 
         cards = []
         for variation, runno in {**variation_to_run, **custom_variation_to_run}.items():
@@ -56,14 +54,18 @@ def main():
             cards.append(case)
     # Fail if geometry generation was omitted or a requested companion system is missing.
     with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as db:
-        if system == "beamline":
+        systems = sorted({entry["name"] for case in cards for entry in case["gsystem"]})
+        placeholders = ",".join("?" for _ in systems)
+        for table in ("geometry", "materials", "mirrors"):
+            columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+            if not {"experiment", "system", "variation"} <= columns:
+                continue
             named_banks = db.execute(
-                "SELECT DISTINCT variation FROM geometry WHERE experiment=? "
-                "AND system IN ('beamline', 'beamline_cad', 'beamline_transverse_cad') "
-                "AND variation!='default'",
-                (card["experiment"],)).fetchall()
+                f"SELECT DISTINCT system, variation FROM {table} WHERE experiment=? "
+                f"AND system IN ({placeholders}) AND variation!='default'",
+                (card["experiment"], *systems)).fetchall()
             if named_banks:
-                raise RuntimeError(f"Beamline SQLite geometry must use the default variation: {named_banks}")
+                raise RuntimeError(f"{system} SQLite {table} must use the default variation: {named_banks}")
         for case in cards:
             expected = 1  # The Geant4 root volume is added by GEMC.
             for entry in case["gsystem"]:
@@ -96,7 +98,7 @@ def main():
             output = run([str(gemc), str(steering), f"-plugin_path={plugins}"], directory)
             if "references missing mesh" in output or "no mesh file was found" in output:
                 raise RuntimeError(f"{system}: GEMC skipped a required CAD mesh:\n{output}")
-            if system in ("beamline", "magnets"):
+            if system in ("beamline", "magnets", "dc"):
                 built = re.search(r"(\d+) geant4 built volumes", output)
                 if not built or int(built[1]) != expected:
                     raise RuntimeError(f"Wrong volume count for {system} run {case['runno']}:\n{output}")

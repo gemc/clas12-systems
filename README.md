@@ -102,6 +102,16 @@ The [`gemc/pygemc`](https://github.com/gemc/pygemc) repository defines the Pytho
 
 Each detector system is self-contained under `geometry_src/<system>`.
 
+Upcoming in the next release: every detector stores SQLite geometry, materials, and optical mirrors under
+`variation=default`, selected by run number. Labels in each detector's `variations.py` choose the generation
+inputs and name ASCII exports; they are not SQLite variation keys. This convention also applies to CAD
+companion systems. Regenerate existing databases, leave each steering-card system at its default variation,
+and change `runno` to select another configuration.
+
+All detector runners use the shared bank cleanup and run-indexing helpers in `geometry_src/clas12_common.py`.
+CAD builders publish through `build_cad(configuration)` and use the supplied configuration for both SQLite
+and ASCII output. LTCC's CAD companion now uses `factory: sqlite`, like the other SQLite CAD imports.
+
 Upcoming in the next release: [magnets](geometry_src/magnets/README.md) provides the native solenoid and
 39 CAD placements from 20 STL files, with passive placements and the three GEMC2 run configurations.
 The six region-1 DC

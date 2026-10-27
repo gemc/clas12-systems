@@ -4,17 +4,18 @@ Upcoming in the next release. This ports the native solenoid and 39 magnets CAD 
 `clas12Tags/geometry_source/magnets`. The native torus builder is disabled in the reference runner and is
 not activated here. Every volume uses passive placement; there is no digitization plugin.
 
-The native `solenoid` system preserves the copper polycone's 14 planes and its configuration-dependent
-z position. The separate `magnets_cad` system uses the original GXML names, materials, positions, rotations,
-colors, and millimetre scale. Upstream and downstream plates and jackets are optimized separately under
+The single SQLite `magnets` system contains the physical `solenoid` volume, 20 CAD sources, and 19 copies.
+The solenoid preserves its name, 14 planes, and configuration-dependent z position. CAD sources and copies
+retain their GXML names, materials, positions, rotations, colors, and millimetre scale.
+Upstream and downstream plates and jackets are optimized separately under
 their original names; repeated vacuum jackets use the shared sources described below.
 The nine `DSShield*` meshes and `apex` are removed from all three magnets configurations because the
 beamline owns this shielding. Load the beamline alongside magnets to include it. This removal reduced the
 collection from 148,940 to 132,230 triangles (11.22% fewer), before the plate/jacket optimization below.
 
-The tungsten alloy is defined locally so the CAD companion can run without loading the beamline system.
+The tungsten alloy is defined locally so magnets can run without loading the beamline system.
 
-The six region-1 back membranes and six supports have moved to [DC](../dc/README.md). Load `dc_cad`
+The six region-1 back membranes and six supports have moved to [DC](../dc/README.md). Load `dc`
 to include them; each group uses one STL and five passive copies. Before jacket sharing, magnets had 39 meshes
 and 120,622 triangles; DC owns two additional meshes with 1,026 unique triangles for twelve placements.
 
@@ -24,7 +25,7 @@ and 120,622 triangles; DC owns two additional meshes with 1,026 unique triangles
 | rga_spring2018 | 3029 | -900.033 |
 | rga_fall2018 | 4763 | -901.093 |
 
-SQLite stores both systems under `default`; select a configuration using `runno`. ASCII output retains the
+SQLite stores the system under `default`; select a configuration using `runno`. ASCII output retains the
 source configuration labels. CAD placements stay at their original positions in all three configurations.
 
 The combined GEMC3 card requires beamline banks at the selected run. The current beamline has no bank at
@@ -45,8 +46,19 @@ Collect the database and meshes for the experiment steering cards from the repos
 build/subprojects/pygemc/python_env/bin/python3 scripts/compare_ascii_databases.py magnets
 ```
 
-The comparator checks the native geometry against the solenoid ASCII reference and all CAD placements
+The comparator checks native geometry and copy rows against the magnets ASCII reference and all CAD placements
 against the current GEMC2 GXML. The retained engineering meshes and assembly contacts are unchanged.
+
+## Consolidated detector banks
+
+Upcoming in the next release: `solenoid` is renamed to `magnets` as a geometry bank; the physical volume
+remains `solenoid`. GEMC2 folds its 19 `CopyOf` rows into native `magnets` and retains the 20 source meshes
+in `magnets_cad`. Its cards load these two factories. GEMC3 keeps all 40 rows in `magnets`, using its SQLite
+factory for both native and CAD solids so that copies resolve within the same system.
+
+The separate copy bank is retired. The historical bank names in the studies below describe archived
+configurations. No STL, hole, material property, position, or rotation changes in this consolidation.
+Magnets retains 66,960 unique facets and 39 CAD placements. No additional simulation speedup is established.
 
 ## Downstream plate and vacuum jacket
 
@@ -103,8 +115,8 @@ finer canonical tessellations increase placed facets to 95,754. Total signed ste
 Export tessellations differ slightly within each family. Fitted circular hole parameters agree within 0.0001
 mm; sampled polygonal surfaces differ by up to 0.27 mm. Protected hole geometry is unchanged in the canonical
 sources. Dense assembly checks find no new overlap pair with the retained exceptions. Existing assembly
-overlaps remain. GEMC2 uses the additional native `magnets_copies` bank; supplied cards load it alongside CAD.
-GEMC3 keeps copies in `magnets_cad`.
+overlaps remain. The consolidation above places the GEMC2 copy rows in native `magnets` alongside the
+solenoid; GEMC3 keeps the source meshes and copies together in `magnets`.
 
 ```shell
 /Users/ungaro/venv/pygemc/bin/python build_vacuum_jackets.py \
@@ -165,7 +177,7 @@ placements by at most 0.000146485 mm. Positions retain three decimal places and 
 
 Unique shield facets fall from 4,146 to 1,594 (61.55% fewer), with 4,146 placed facets across seven volumes.
 Signed tungsten-alloy volume changes by -0.000002416%. After hub-shield sharing, magnets had 20 STL sources
-and 67,012 unique facets for 39 CAD placements; GEMC2 uses 20 CAD sources and 19 native `magnets_copies`
+and 67,012 unique facets for 39 CAD placements; GEMC2 uses 20 CAD sources and 19 native `magnets`
 rows per run.
 
 ```shell

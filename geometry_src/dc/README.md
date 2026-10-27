@@ -1,8 +1,8 @@
 # DC region-1 CAD
 
 Upcoming in the next release: the six `dcs1r1back` through `dcs6r1back` membranes belong to DC,
-in `cad/`, rather than magnets. Load the passive `dc_cad` companion alongside native `dc`.
-The experiment card also loads this companion when native DC digitization is disabled.
+in `cad/`, rather than magnets. Load the passive `dc` system, which includes the source meshes and copies.
+Disabling DC digitization does not remove these passive volumes.
 All CAD position coordinates are rounded to three decimal places in millimetres by the mesh builder.
 
 Each original mesh has 12 vertices and 20 triangles. Proper rigid fits establish congruence within
@@ -18,10 +18,16 @@ placements match within 0.00012 mm. Materials, colors, and passive placement rem
 Sharing one thin membrane changes total signed Kapton volume by about 0.5%
 because the original approximately 2.5-micrometre films have rounded STL coordinates.
 
-SQLite publishes the companion under `default` at runs 11, 3029, 4763, and the custom DC DDVCS run.
-The six placements are identical across these banks. Native DC variations and geometry remain unchanged.
-GEMC2 uses the same CAD source and a separate `dc_copies` native bank for its five `CopyOf` rows;
-its supplied DC cards load both banks. Original six meshes are archived in the owning GEMC2 repository.
+SQLite publishes `dc` under `default` at runs 11, 3029, 4763, and the custom DC DDVCS run.
+The survey run keys reuse the default native chambers; DDVCS retains its existing extra shields.
+GEMC2 folds the ten back/support `CopyOf` rows into native `dc`; its two source meshes remain in `dc_cad`.
+GEMC3 keeps all sources and copies in the main `dc` system because copy dependencies resolve within a system.
+The main GEMC3 bank has 66 rows, or 72 for DDVCS. GEMC2 has 64 native rows, or 70 for DDVCS TEXT, plus two
+CAD source rows. Cards no longer load a separate copy bank. Original meshes remain archived in GEMC2.
+
+Consolidation leaves every mesh, opening, material, position, and rotation unchanged. Duplicate rows in the
+old GEMC2 copy bank are removed; each named placement occurs once. This step removes no facets and establishes
+no additional simulation speedup. The two shared meshes still contain 1,026 unique facets.
 
 Reproduce the shared mesh, fitted placements, and metrics with the mesh-enabled pygemc environment:
 

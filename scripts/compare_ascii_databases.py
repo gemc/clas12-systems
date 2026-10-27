@@ -597,6 +597,9 @@ def compare_variation(
     generated_records = drop_skipped_volumes(
         combined_semantic_records(generated, "pygemc", section), system
     )
+    if system in ("dc", "magnets") and section == "geometry":
+        # GEMC2 still imports mesh sources through its CAD factory; copies are now native detector rows.
+        generated_records = {name: row for name, row in generated_records.items() if row["solid"] != "CAD"}
     reference_records = drop_skipped_volumes(semantic_records(reference, "clas12tags", section), system)
     fields = GEOMETRY_FIELDS if section == "geometry" else MATERIAL_FIELDS
     kind = "volume" if section == "geometry" else "material"
@@ -620,7 +623,7 @@ def compare_section(
     generated_dir: Path,
     reference_dir: Path,
 ) -> tuple[bool, list[str]]:
-    native_system = "solenoid" if system == "magnets" else system
+    native_system = system
     generated_files = {
         variation: [path]
         for variation, path in variation_files(generated_dir, native_system, section).items()
@@ -629,6 +632,9 @@ def compare_section(
         for variation, path in variation_files(generated_dir, companion, section).items():
             generated_files.setdefault(variation, []).append(path)
     reference_files = variation_files(reference_dir, native_system, section)
+    if system == "dc" and "default" in reference_files:
+        for alias in ("rga_spring2018", "rga_fall2018"):
+            reference_files[alias] = reference_files["default"]
 
     # Systems built entirely from standard Geant4 materials ship no materials files.
     if not generated_files and not reference_files:
@@ -680,7 +686,7 @@ def compare_system(system: str, args: argparse.Namespace, output_dir: Path) -> t
 def compare_cad(generated_dir: Path, reference_dir: Path, system: str) -> tuple[bool, list[str]]:
     """Compare CAD companions against GEMC2's separate GXML placement files."""
     fields = GEOMETRY_FIELDS + ("placement", "color", "visible", "style")
-    companion = f"{system}_cad"
+    companion = system if system in ("dc", "magnets") else f"{system}_cad"
     companions = [companion]
     expected = {}
     for path in sorted((reference_dir / "cad").glob("cad_*.gxml")):
@@ -706,7 +712,8 @@ def compare_cad(generated_dir: Path, reference_dir: Path, system: str) -> tuple[
         messages.append(f"{system}: missing CAD reference placements")
     for companion, variation in sorted(set(expected) | set(generated)):
         key = (companion, variation)
-        label = f"{system}/{companion.removeprefix(f'{system}_')}_{variation}"
+        label = f"{system}/cad_{variation}" if system in ("dc", "magnets") else (
+            f"{system}/{companion.removeprefix(f'{system}_')}_{variation}")
         if key not in expected or key not in generated:
             missing = "reference" if key not in expected else "generated"
             messages.append(f"{label}: missing {missing} CAD variation")
@@ -731,6 +738,8 @@ def compare_cad(generated_dir: Path, reference_dir: Path, system: str) -> tuple[
         for row in parse_pipe_rows(generated[key]):
             required_row_size(row, 20, generated[key])
             record = new_geometry_record(row)
+            if system in ("dc", "magnets") and record["name"] not in reference_records:
+                continue
             record.update(placement=row[7], color=row[11].lower(), visible=row[9], style=row[10])
             generated_records[record["name"]] = record
         differences = semantic_differences(generated_records, reference_records, fields, "CAD volume")

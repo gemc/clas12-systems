@@ -59,7 +59,11 @@ def main():
     logs.mkdir()
     cases, inventories = {}, {}
     magnet_groups = ("vacuum_jacket", "coil", "hub_cover", "hub_shield", "cold_hub")
-    optimized_system = "magnets_cad" if args.group in magnet_groups else "dc_cad"
+    optimized_system = "magnets" if args.group in magnet_groups else "dc"
+    with sqlite3.connect(args.optimized / "gemc.sqlite") as db:
+        if not db.execute("SELECT 1 FROM geometry WHERE system=? AND solid='CAD' LIMIT 1",
+                          (optimized_system,)).fetchone():
+            optimized_system += "_cad"  # Historical study archives retain their original bank names.
     for label, source, system in (("original", args.originals, "magnets_cad"),
                                    ("optimized", args.optimized, optimized_system)):
         folder = args.output / label

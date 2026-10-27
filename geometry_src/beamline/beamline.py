@@ -5,7 +5,8 @@ from copy import copy
 
 from pygemc import GConfiguration, autogeometry
 
-from database import index_banks_by_run, reset_banks
+from clas12_common import index_detector_banks_by_run, reset_detector_banks
+from database import copy_transverse_native_banks
 from geometry import build_beamline, build_cad
 from materials import define_materials
 from variations import custom_variation_to_run, transverse_variation_to_run, variation_to_run
@@ -13,7 +14,10 @@ from variations import custom_variation_to_run, transverse_variation_to_run, var
 
 cfg = autogeometry("clas12", "beamline")
 cad_cfg = GConfiguration("clas12", "beamline_cad", args=cfg.args)
-reset_banks(cfg)
+transverse_args = copy(cfg.args)
+transverse_args.variation = "noWedges"
+transverse_cfg = GConfiguration("clas12", "beamline_transverse_cad", args=transverse_args)
+reset_detector_banks(cfg, cad_cfg, transverse_cfg)
 
 for variation, run in {**variation_to_run, **custom_variation_to_run}.items():
     cfg.init_variation(variation)
@@ -28,12 +32,10 @@ for variation, run in {**variation_to_run, **custom_variation_to_run}.items():
         define_materials(cad_cfg)
         build_cad(cad_cfg)
 
-transverse_args = copy(cfg.args)
-transverse_args.variation = "noWedges"
-transverse_cfg = GConfiguration("clas12", "beamline_transverse_cad", args=transverse_args)
 for variant, run in transverse_variation_to_run.items():
     transverse_cfg.init_variation(variant)
     transverse_cfg.runno = run
     build_cad(transverse_cfg, transverse=True)
 
-index_banks_by_run(cfg, transverse_variation_to_run)
+copy_transverse_native_banks(cfg, transverse_variation_to_run)
+index_detector_banks_by_run(cfg, cad_cfg, transverse_cfg)
